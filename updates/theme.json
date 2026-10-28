@@ -1,0 +1,12 @@
+{
+  "name": "BMT Educacional",
+  "slug": "bmt-educacional",
+  "version": "1.0.0",
+  "requires": "6.2",
+  "requires_php": "7.4",
+  "tested": "7.1.3",
+  "package": "https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/bmt-educacional-1.0.0.zip",
+  "sha256": "414fbca9897e97beaac3db49f3d188544fca0ea5463de0dc39a53cdfb9eb61a8",
+  "description": "<p>Site BMT Comercial com catálogo integrado de materiais didáticos, paradidáticos e eventos escolares.</p>",
+  "changelog": "<p>Versão 1.0.0. Consulte CHANGELOG.md no repositório para as alterações.</p>"
+}

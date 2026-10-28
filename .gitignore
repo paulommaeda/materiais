@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.DS_Store
+.env
+wp-config.php
+debug.log
+node_modules/
+vendor/
+*.sql
