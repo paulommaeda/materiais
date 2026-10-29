@@ -27,6 +27,7 @@
           batch.forEach(card => {
             const html = result.prices[card.dataset.bmtProduct];
             if (typeof html === 'string') card.querySelector('[data-bmt-price]').innerHTML = html;
+            else card.remove();
           });
           next = Math.min(next, result.refresh_after || 300);
         }

@@ -1,4 +1,22 @@
-# Validação — versão 2.3.0 — 29/10/2026
+# Validação — versão 2.4.0 — 29/10/2026
+
+Ambiente local descartável: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151. Sem acesso ao WordPress de produção.
+
+- **190 verificações de integração aprovadas:** 32 novas de turmas/preços por produto, além de 50 do núcleo, 27 de alunos/catálogo/atualizações, 37 de descontos por data e 44 de importação/API.
+- Seleção obrigatória de turmas ao salvar produto, consolidação de seleção com turmas informadas manualmente, tipos e tamanhos válidos e ausência de gravação parcial quando a seleção é inválida.
+- Preço normal, preço específico e promoção conferidos por produto. Turma excluída não pode cotar nem criar nova compra, mesmo com preço antigo cadastrado ou contexto de consulta anterior.
+- Catálogo ignora preços de turmas não selecionadas e oculta produtos sem turma/preço válido. Adesão e pendências do dashboard incluem somente alunos elegíveis ou com pedido histórico pago.
+- Alterar a seleção de um produto preserva o outro. Importar turma nova apenas a disponibiliza como opção, sem liberar compra automaticamente.
+- Migração converte a disponibilidade anterior em seleção explícita por produto; repetir a migração preserva a seleção editada. Pedidos anteriores conservam valores e pagamento e continuam acessíveis após remover uma turma.
+- No navegador: criação de dois produtos com turmas diferentes, cadastro de preço por data no primeiro, catálogo com valores independentes e consulta de CPF compartilhado retornando apenas o aluno da turma liberada para cada produto.
+- Atualização nativa 2.3.0 → 2.4.0 pelo `Plugin_Upgrader`, com SHA-256 conferido: pedido e aluno preservados, desconto funcionando e turmas convertidas em seleção explícita.
+- Mudança de turma com checkout aberto retorna erro antes de emitir cobrança. Editor de produto inspecionado em 1440 px e 390 px sem transbordamento da página ou erros JavaScript.
+
+Dados de teste sintéticos; nenhuma cobrança real ou mensagem enviada. O relatório anterior permanece abaixo como histórico.
+
+---
+
+## Histórico da validação — versão 2.3.0 — 29/10/2026
 
 Ambiente local descartável: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151. Nenhum acesso ao WordPress de produção.
 

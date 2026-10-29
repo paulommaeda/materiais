@@ -72,9 +72,18 @@ final class Storefront
         if (isset(self::categories()[$category])) {
             $where .= $wpdb->prepare(' AND p.categoria = %s', $category);
         }
-        return $wpdb->get_results("SELECT p.*,(SELECT MIN(v.valor) FROM $prices v WHERE v.produto_id = p.id) AS menor_valor_turma
+        $items = $wpdb->get_results("SELECT p.*
             FROM $products p WHERE $where AND (p.valor_padrao IS NOT NULL OR EXISTS(SELECT 1 FROM $prices v WHERE v.produto_id = p.id))
             ORDER BY p.ordem ASC,p.nome ASC");
+        $quotes = Discounts::catalog_prices($items);
+        $result = [];
+        foreach ($items as $product) {
+            if (isset($quotes[$product->id])) {
+                $product->catalog_price = $quotes[$product->id];
+                $result[] = $product;
+            }
+        }
+        return $result;
     }
 
     public static function icon(string $category): string
@@ -95,7 +104,6 @@ final class Storefront
             $category = '';
         }
         $items = self::catalog($category);
-        $prices = Discounts::catalog_prices($items);
         wp_enqueue_script('bmt-catalog', plugins_url('assets/storefront.js', K8PROD_FILE), [], K8PROD_VERSION, true);
         ob_start();
         echo '<div class="bmt-catalog" data-bmt-catalog data-ajax="' . esc_url(admin_url('admin-ajax.php')) . '">';
@@ -113,7 +121,7 @@ final class Storefront
             echo '<div class="bmt-products">';
             foreach ($items as $p) {
                 $cat = isset(self::categories()[$p->categoria]) ? $p->categoria : 'didatico';
-                $price = $prices[$p->id];
+                $price = $p->catalog_price;
                 echo '<article class="bmt-product-card" data-bmt-product="' . (int) $p->id . '"><a class="bmt-product-art art-' . esc_attr($cat) . '" href="' . esc_url(self::url((int) $p->id)) . '" aria-label="' . esc_attr('Ver ' . $p->nome) . '">';
                 if ($p->imagem_id && wp_attachment_is_image((int) $p->imagem_id)) {
                     echo wp_get_attachment_image((int) $p->imagem_id, 'medium_large', false, ['loading' => 'lazy']);

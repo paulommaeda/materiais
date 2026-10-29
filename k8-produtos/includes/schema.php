@@ -52,6 +52,7 @@ final class Schema
                     publicado tinyint(1) NOT NULL DEFAULT 1,
                     ordem int NOT NULL DEFAULT 0,
                     valor_padrao decimal(10,2) DEFAULT NULL,
+                    turmas_disponiveis longtext DEFAULT NULL,
                     etapas tinyint(1) NOT NULL DEFAULT 1,
                     permitir_negativo tinyint(1) NOT NULL DEFAULT 0,
                     vencimento_dias int NOT NULL DEFAULT 5,
@@ -219,6 +220,7 @@ final class Schema
                 self::migrate_legacy();
             }
             StudentImport::install();
+            ProductClasses::migrate();
             update_option('k8prod_schema', K8PROD_VERSION, false);
         });
     }

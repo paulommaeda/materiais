@@ -43,10 +43,10 @@ final class Http
                     return in_array((int) $p->id, $requested, true);
                 }));
                 $html = [];
-                foreach (Discounts::catalog_prices($items) as $product_id => $price) {
-                    $html[$product_id] = Discounts::render_price($price);
+                foreach ($items as $item) {
+                    $html[$item->id] = Discounts::render_price($item->catalog_price);
                 }
-                wp_send_json_success(['prices' => (object) $html, 'refresh_after' => Discounts::refresh_after()]);
+                wp_send_json_success(['prices' => (object) $html, 'refresh_after' => Discounts::refresh_after(array_map('intval', array_column($items, 'id')))]);
             }
             $id = absint($data['produto_id'] ?? 0);
             $product = Support::product($id, true);
@@ -144,7 +144,9 @@ final class Http
                     throw new \InvalidArgumentException('O produto já possui materiais ou entregas da segunda etapa. Mantenha duas etapas.');
                 }
             }
+            $classes = ProductClasses::input($data);
             $record = ['nome' => $name, 'descricao' => sanitize_textarea_field($data['descricao'] ?? ''),
+                'turmas_disponiveis' => wp_json_encode($classes),
                 'valor_padrao' => Support::text($data, 'valor_padrao') === '' ? null : Support::money($data['valor_padrao']),
                 'etapas' => $stages, 'permitir_negativo' => empty($data['permitir_negativo']) ? 0 : 1,
                 'vencimento_dias' => $days, 'ativo' => empty($data['ativo']) ? 0 : 1];
@@ -177,6 +179,9 @@ final class Http
             $class = Support::text($data, 'turma');
             if (!$class || strlen($class) > 100) {
                 throw new \InvalidArgumentException('Informe a turma.');
+            }
+            if (!ProductClasses::allows(Support::product($id), $class)) {
+                throw new \InvalidArgumentException('Selecione esta turma no cadastro do produto antes de definir seu preço.');
             }
             $table = Support::table('valores_turma');
             Support::must($wpdb->query($wpdb->prepare("INSERT INTO $table (produto_id,turma,valor) VALUES (%d,%s,%s)

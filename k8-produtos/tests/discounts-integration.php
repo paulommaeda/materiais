@@ -22,7 +22,7 @@ function discount_rejects(callable $job, $name) {
 }
 function discount_product($name, $price = 1000) {
     global $wpdb;
-    S::must($wpdb->insert(S::table('produtos'), ['nome'=>$name,'slug'=>sanitize_title($name).'-'.bin2hex(random_bytes(3)),'valor_padrao'=>$price]));
+    S::must($wpdb->insert(S::table('produtos'), ['nome'=>$name,'slug'=>sanitize_title($name).'-'.bin2hex(random_bytes(3)),'valor_padrao'=>$price,'turmas_disponiveis'=>wp_json_encode(['5º Ano A','6º Ano','Turma A','Turma B','Turma específica'])]));
     return S::product((int) $wpdb->insert_id);
 }
 function discount_rule($product, array $data = []) {

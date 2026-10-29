@@ -60,8 +60,8 @@ site_check((int)$wpdb->get_var("SELECT COUNT(*) FROM $guardians WHERE ra='CSV-01
 Import::save_import($partial,true);
 site_check((int)$wpdb->get_var("SELECT COUNT(*) FROM $table")===1,'substituição total remove alunos ausentes');
 
-$wpdb->insert(S::table('produtos'),['nome'=>'Catálogo didático','slug'=>'site-didatico','valor_padrao'=>120,'categoria'=>'didatico']);$did=(int)$wpdb->insert_id;
-$wpdb->insert(S::table('produtos'),['nome'=>'Evento do catálogo','slug'=>'site-evento','valor_padrao'=>35,'categoria'=>'evento']);$evt=(int)$wpdb->insert_id;
+$wpdb->insert(S::table('produtos'),['nome'=>'Catálogo didático','slug'=>'site-didatico','valor_padrao'=>120,'turmas_disponiveis'=>wp_json_encode(['5º Ano A']),'categoria'=>'didatico']);$did=(int)$wpdb->insert_id;
+$wpdb->insert(S::table('produtos'),['nome'=>'Evento do catálogo','slug'=>'site-evento','valor_padrao'=>35,'turmas_disponiveis'=>wp_json_encode(['5º Ano A']),'categoria'=>'evento']);$evt=(int)$wpdb->insert_id;
 $wpdb->insert(S::table('produtos'),['nome'=>'Oculto','slug'=>'site-oculto','valor_padrao'=>10,'publicado'=>0]);$hidden=(int)$wpdb->insert_id;
 $wpdb->insert(S::table('produtos'),['nome'=>'Sem preço','slug'=>'site-sem-preco']);$no_price=(int)$wpdb->insert_id;
 $ids=array_map('intval',array_column(Storefront::catalog(),'id'));

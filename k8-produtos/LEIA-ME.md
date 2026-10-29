@@ -1,4 +1,4 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.3.0
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.4.0
 
 Plugin único criado a partir dos cinco arquivos de Paulo Maeda. Reúne cadastro de produtos, página pública de compra, cobrança K8, cupons, estoque, entregas com assinatura e painel por produto. Não exige WooCommerce.
 
@@ -40,8 +40,8 @@ Após instalar esta versão, limpe o cache da home/CDN para carregar a atualiza�
 ## Criar e publicar produtos
 
 1. Abra **K8 Produtos → Produtos e preços** e clique em **Novo produto**.
-2. Informe nome, descrição, preço padrão, prazo do vencimento e modelo de entrega: única ou duas etapas/semestres.
-3. Cadastre os valores por turma quando necessário. O preço por turma substitui o preço padrão. Se deixar o padrão vazio, apenas as turmas com preço cadastrado poderão comprar.
+2. Informe nome e descrição, selecione as turmas disponíveis para esse produto e defina seu preço normal, prazo de vencimento e modelo de entrega. Outras turmas podem ser informadas no campo próprio, uma por linha.
+3. Salve o produto. Na mesma tela, cadastre o preço por data, com valor ou percentual promocional e data limite. Valores específicos por turma são opcionais e substituem o preço normal. Todos esses preços valem apenas para as turmas selecionadas no produto.
 4. Copie o shortcode exibido no cadastro para um bloco **Shortcode** de uma página do WordPress.
 
 Exemplos, substituindo os IDs pelos exibidos no seu painel:
@@ -69,6 +69,14 @@ Os shortcodes antigos continuam reconhecidos:
 | `[k8pm_dashboard]` | Aba de estoque com seletor |
 
 A identificação agora acontece no próprio shortcode. Parâmetros de URL com RA, turma, CPF ou valor não são usados para autorizar compras.
+
+## Turmas e preço por data
+
+No editor de cada produto, use **Turmas disponíveis para este produto** e **Preço por data deste produto**. Não existe preço que libere todas as turmas do site. Uma turma não selecionada não pode cotar nem criar nova compra, mesmo com preço antigo configurado. No formulário de preço por data, a opção “Turmas selecionadas neste produto” abrange somente a lista do produto aberto; você também pode escolher apenas uma dessas turmas.
+
+O preço normal é mostrado riscado junto ao valor promocional e à data limite durante a promoção. O último dia inteiro é incluído, no fuso do WordPress. Faixas são independentes por produto. O catálogo e as pendências do dashboard respeitam as turmas selecionadas. Pedidos já emitidos continuam acessíveis para acompanhamento, pagamento e entrega.
+
+Depois de atualizar, revise as turmas de cada produto: a migração transforma o alcance anterior em seleção explícita das turmas atuais. Turmas importadas futuramente não são liberadas automaticamente. Produtos novos precisam de ao menos uma turma e de um preço aplicável para aparecer no catálogo.
 
 ## Base de alunos
 

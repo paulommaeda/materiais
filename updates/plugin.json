@@ -1,12 +1,12 @@
 {
   "name": "K8 Produtos, Alunos, Cobranças e Entregas",
   "slug": "k8-produtos",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "requires": "6.2",
   "requires_php": "7.4",
   "tested": "7.1.3",
-  "package": "https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.3.0.zip",
-  "sha256": "c89727fbe9330518d1ffeae682a9ef190062351f3739d178637fbdb0dd1babe8",
+  "package": "https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.4.0.zip",
+  "sha256": "9b0c3b54933da24964c612df22b1af42b53fc8596271f2d276967b37b36d4ea6",
   "description": "<p>Catálogo, produtos por shortcode, base de alunos com CSV e API, cobrança K8, cupons, estoque e entrega com assinatura.</p>",
-  "changelog": "<p>Versão 2.3.0. Consulte CHANGELOG.md no repositório para as alterações.</p>"
+  "changelog": "<p>Versão 2.4.0. Consulte CHANGELOG.md no repositório para as alterações.</p>"
 }

@@ -1,5 +1,15 @@
 # Alterações
 
+## Plugin 2.4.0
+
+- Seleção explícita das turmas disponíveis no cadastro de cada produto; novos produtos exigem pelo menos uma turma.
+- Editor reúne cadastro, turmas, preço normal, preço por data, publicação e preços específicos por turma no contexto do produto aberto.
+- O preço normal não libera novas turmas. Consulta por CPF, cotação e checkout conferem a seleção no servidor, inclusive quando o comprador manteve a página aberta.
+- Preços e promoções para turmas não selecionadas ficam sem efeito; cadastro de novos preços e faixas só aceita as turmas do produto.
+- Catálogo considera apenas preços de turmas liberadas e oculta produtos sem combinação válida de turma/preço. Dashboard filtra adesão e pendências pelo produto.
+- Importar uma turma nova não a libera automaticamente nos produtos. A lista anterior é convertida em seleção explícita na atualização, sem repor turmas removidas depois.
+- Pedidos e entregas anteriores continuam acessíveis, preservando valores e histórico.
+
 ## Plugin 2.3.0
 
 - Corrige o registro da página Alunos após o menu pai, eliminando a falha de acesso ao importador no painel.

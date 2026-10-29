@@ -42,7 +42,7 @@ function reset_plugin() {
 }
 function insert_product($name, $price = 100, $stages = 1) {
     global $wpdb;
-    S::must($wpdb->insert(S::table('produtos'), ['nome'=>$name,'slug'=>sanitize_title($name),'valor_padrao'=>$price,'etapas'=>$stages]));
+    S::must($wpdb->insert(S::table('produtos'), ['nome'=>$name,'slug'=>sanitize_title($name),'valor_padrao'=>$price,'etapas'=>$stages,'turmas_disponiveis'=>wp_json_encode(['5º Ano A','6º Ano','9º Ano'])]));
     return S::product((int)$wpdb->insert_id);
 }
 function person($ra = 'RA-001') {

@@ -94,6 +94,8 @@ No modo de substituição total, alunos e vínculos ausentes são removidos, e o
 
 O lote inteiro é validado antes da gravação e salvo em uma transação. CPF inválido de responsável, divergência de nome/turma/CPF do aluno em RA repetido ou falha de banco impede a conclusão do lote. Não há importação parcial silenciosa. Uma gravação bem-sucedida invalida consultas temporárias de compra anteriores; o responsável deve buscar seu CPF novamente.
 
+A partir do plugin 2.4.0, importar um aluno de uma turma nova não libera essa turma automaticamente nos produtos. Selecione-a no cadastro de cada produto em que poderá comprar. Os preços por data e por turma pertencem ao produto escolhido.
+
 A API e o importador do painel gravam nas tabelas integradas `lista_alunos_v4` e `sba_guardians`, com o prefixo do site. Se o mapeamento estiver apontando para uma base externa, o painel e a resposta da API avisam que a compra está consultando outra base. Ajuste em **K8 Produtos → Configurações** quando quiser usar a lista integrada.
 
 ## Resposta de sucesso

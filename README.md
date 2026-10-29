@@ -5,10 +5,10 @@ Site WordPress com um plugin unificado e um tema próprio. Cadastro e importaç�
 ## Instalar
 
 1. Faça backup do WordPress e do banco antes de migrar os plugins anteriores.
-2. Baixe [k8-produtos-2.3.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.3.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
+2. Baixe [k8-produtos-2.4.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.4.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
 3. Baixe [bmt-educacional-1.0.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/bmt-educacional-1.0.0.zip), instale em **Aparência → Temas → Adicionar tema → Enviar tema** e ative **BMT Educacional**.
 4. Abra **K8 Produtos → Alunos**. A base anterior `lista_alunos_v4` e os vínculos de `sba_guardians` são reaproveitados. Importe o CSV quando precisar atualizar o cadastro.
-5. Em **K8 Produtos → Produtos e preços**, cadastre categoria, descrição, imagem opcional e preço padrão ou valores por turma. Marque **Exibir este produto na home e no catálogo**.
+5. Em **K8 Produtos → Produtos e preços**, abra ou crie um produto, selecione suas turmas e cadastre categoria, descrição, imagem opcional e preço normal ou valores por turma. Marque **Exibir este produto na home e no catálogo**.
 6. Confira as credenciais e os endpoints em **K8 Produtos → Configurações**. Homologue uma cobrança na sua conta K8 antes de liberar pagamentos reais.
 
 O tema assume a apresentação da página inicial ao ser ativado. Produtos ativos, publicados e com preço configurado aparecem automaticamente na home, com filtros para didáticos, paradidáticos e eventos. Cada produto abre sua página de compra sem exigir criar uma página ou colar um shortcode. As páginas antigas com shortcode continuam disponíveis.
@@ -30,9 +30,21 @@ Para publicar uma próxima versão:
 
 Não basta editar arquivos PHP sem gerar os pacotes e aumentar a versão. Os sites só recebem uma atualização quando o manifesto anunciar uma versão maior. O canal depende de acesso HTTPS do servidor a `raw.githubusercontent.com`.
 
-## Descontos por data
+## Turmas e preços por produto
 
-Em **K8 Produtos → Produtos e preços**, abra o produto e use **Descontos por data**. Cadastre o nome, o tipo (percentual ou preço promocional), a data inicial opcional e a data final. Você pode criar várias faixas e restringi-las a uma turma.
+Em **K8 Produtos → Produtos e preços**, abra o produto que deseja configurar. No cadastro ficam **Turmas disponíveis para este produto**, **Preço normal deste produto** e **Preço por data deste produto**. Cada produto tem sua própria seleção, preços e faixas de promoção; não há liberação geral de turmas por preço.
+
+1. Marque as turmas que poderão comprar. A lista usa as turmas da base de alunos; se necessário, informe outras turmas no campo próprio, uma por linha. É necessário escolher ao menos uma turma para salvar.
+2. Cadastre o preço normal do produto. Esse valor só vale para as turmas selecionadas. Você também pode deixar o valor vazio e cadastrar preços específicos para as turmas desse produto.
+3. Salve o produto e, na mesma tela, use **Preço por data deste produto**. A faixa pode abranger as turmas selecionadas nesse produto ou apenas uma delas.
+
+Uma turma não selecionada não pode gerar nova compra, mesmo que exista um preço ou desconto antigo para ela. O catálogo calcula o menor preço somente entre as turmas liberadas com preço, e o dashboard usa essa seleção nas pendências e na adesão. Pedidos já emitidos permanecem acessíveis para acompanhamento e entrega, com seus valores históricos.
+
+Turmas novas importadas pelo painel ou pela API aparecem como opções para seleção; não são liberadas automaticamente nos produtos. Na atualização da versão anterior, os produtos com preço normal recebem uma seleção explícita das turmas atuais da base e das turmas com preço próprio; produtos sem preço normal recebem somente suas turmas com preço. Revise essa seleção em cada produto. Se não houver turmas conhecidas nem preços por turma, o produto aguarda a seleção antes de aparecer no catálogo.
+
+### Preço por data
+
+No produto aberto, use **Preço por data deste produto**. Cadastre o nome, o tipo (percentual ou preço promocional), a data inicial opcional e a data final. Você pode criar várias faixas e restringi-las a uma turma.
 
 Durante a vigência, o catálogo e a compra mostram o preço original riscado, o valor menor e **“Até DD/MM/AAAA”**. O último dia é incluído por inteiro no fuso configurado em **Configurações → Geral** do WordPress. Depois, o preço normal volta automaticamente. Quando houver mais de uma faixa válida, vale o menor preço; as faixas não são somadas.
 

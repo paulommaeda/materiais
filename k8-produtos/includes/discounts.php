@@ -48,12 +48,15 @@ final class Discounts
     public static function save(int $product, array $data): int
     {
         global $wpdb;
-        Support::product($product);
+        $record_product = Support::product($product);
         $name = Support::text($data, 'titulo');
         $type = Support::text($data, 'tipo');
         $start = Support::text($data, 'inicio');
         $end = Support::text($data, 'fim');
         $class = Support::text($data, 'turma_restrita');
+        if ($class !== '' && !ProductClasses::allows($record_product, $class)) {
+            throw new \InvalidArgumentException('O preço por data só pode ser configurado para uma turma selecionada neste produto.');
+        }
         $value = Support::money(Support::text($data, 'valor'));
         foreach ([$start, $end] as $date) {
             if ($date !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/D', $date) ||
@@ -107,12 +110,8 @@ final class Discounts
         }
         $ids = array_map('intval', array_column($products, 'id'));
         $placeholders = implode(',', array_fill(0, count($ids), '%d'));
-        $prices_table = Support::table('valores_turma');
         $rules_table = Support::table('descontos_data');
-        $prices = [];
-        foreach ($wpdb->get_results($wpdb->prepare("SELECT produto_id,turma,valor FROM $prices_table WHERE produto_id IN ($placeholders)", $ids)) as $row) {
-            $prices[$row->produto_id][$row->turma] = (float) $row->valor;
-        }
+        $prices = ProductClasses::price_choices($products);
         $today = self::today();
         $rules = [];
         foreach ($wpdb->get_results($wpdb->prepare("SELECT * FROM $rules_table WHERE produto_id IN ($placeholders)
@@ -123,14 +122,6 @@ final class Discounts
         foreach ($products as $p) {
             $choices = $prices[$p->id] ?? [];
             $active = $rules[$p->id] ?? [];
-            if ($p->valor_padrao !== null) {
-                $choices[''] = (float) $p->valor_padrao;
-                foreach ($active as $rule) {
-                    if ($rule->turma_restrita && !isset($choices[$rule->turma_restrita])) {
-                        $choices[$rule->turma_restrita] = (float) $p->valor_padrao;
-                    }
-                }
-            }
             $best = null;
             foreach ($choices as $class => $base) {
                 $quote = self::apply($base, (string) $class, $active);
@@ -160,14 +151,19 @@ final class Discounts
         return $html;
     }
 
-    public static function refresh_after(): int
+    public static function refresh_after(array $products): int
     {
         global $wpdb;
+        if (!$products) {
+            return 300;
+        }
         $table = Support::table('descontos_data');
         $now = current_datetime();
         $today = self::today($now);
         $seconds = 300;
-        foreach ($wpdb->get_results($wpdb->prepare("SELECT inicio,fim FROM $table WHERE ativo = 1 AND fim >= %s", $today)) as $rule) {
+        $ids = array_map('intval', $products);
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        foreach ($wpdb->get_results($wpdb->prepare("SELECT inicio,fim FROM $table WHERE ativo = 1 AND fim >= %s AND produto_id IN ($placeholders)", array_merge([$today], $ids))) as $rule) {
             foreach ([$rule->inicio, $rule->fim ? (new \DateTimeImmutable($rule->fim, wp_timezone()))->modify('+1 day')->format('Y-m-d') : null] as $date) {
                 if ($date) {
                     $delta = (new \DateTimeImmutable($date . ' 00:00:00', wp_timezone()))->getTimestamp() - $now->getTimestamp();

@@ -6,6 +6,9 @@ final class Service
 {
     public static function price(object $product, string $class): ?float
     {
+        if (!ProductClasses::allows($product, $class)) {
+            return null;
+        }
         global $wpdb;
         $table = Support::table('valores_turma');
         $price = $wpdb->get_var($wpdb->prepare("SELECT valor FROM $table WHERE produto_id = %d AND turma = %s", $product->id, $class));
@@ -52,7 +55,7 @@ final class Service
     {
         $dated = Discounts::price($product, $person['turma']);
         if ($dated === null) {
-            throw new \InvalidArgumentException('Produto sem preço para esta turma. Contate a secretaria.');
+            throw new \InvalidArgumentException('Produto indisponível ou sem preço para esta turma. Contate a secretaria.');
         }
         $base = $dated['original'];
         $value = $dated['valor'];
@@ -82,7 +85,7 @@ final class Service
             'promocao_fim' => $promotion ? $promotion->fim : null,
             'promocao_ate' => $promotion ? Discounts::date_label($promotion->fim) : null,
             'cupom' => $coupon_applied ? $coupon->codigo : '', 'percentual' => $coupon_applied ? (float) $coupon->percentual : 0,
-            'aviso_cupom' => $warning, 'refresh_after' => Discounts::refresh_after()];
+            'aviso_cupom' => $warning, 'refresh_after' => Discounts::refresh_after([(int) $product->id])];
         $quote['chave_preco'] = hash('sha256', wp_json_encode([$product->id, $person['turma'], $base, $value,
             $quote['valor_apos_data'], $quote['promocao_id'], $quote['promocao_fim'], $quote['cupom'], $quote['percentual']]));
         return $quote;

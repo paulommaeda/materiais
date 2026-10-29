@@ -105,6 +105,13 @@ final class Students
             MAX(`{$map['class']}`) AS turma FROM `$table` GROUP BY `{$map['ra']}` ORDER BY turma,nome_aluno");
     }
 
+    public static function classes(): array
+    {
+        global $wpdb;
+        [$table, $map] = self::source();
+        return $wpdb->get_col("SELECT DISTINCT `{$map['class']}` FROM `$table` WHERE `{$map['class']}` <> '' ORDER BY `{$map['class']}`");
+    }
+
     public static function issue(int $product, array $person): string
     {
         $token = bin2hex(random_bytes(32));

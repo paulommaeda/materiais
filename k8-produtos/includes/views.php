@@ -152,6 +152,9 @@ final class Views
                 echo '<a ' . ($key === $tab ? 'aria-current="page"' : '') . ' href="' . esc_url($url) . '">' . esc_html($label) . '</a>';
             }
             echo '</nav><div class="k8-product-title"><h2>' . esc_html($product->nome) . '</h2><code>[k8_produto id="' . $id . '"]</code></div>';
+            if (current_user_can('manage_options')) {
+                echo '<p><a href="' . esc_url(admin_url('admin.php?page=k8prod-products&produto_id=' . $id)) . '">Editar turmas e preços deste produto</a></p>';
+            }
             if ($tab === 'overview') {
                 self::overview($product);
             } elseif ($tab === 'orders') {
@@ -197,7 +200,7 @@ final class Views
         $pending = [];
         try {
             foreach (Students::all() as $student) {
-                if ($p->valor_padrao === null && !in_array($student->turma, $classes, true) && !isset($paid[$student->ra])) {
+                if ((!ProductClasses::allows($p, $student->turma) || ($p->valor_padrao === null && !in_array($student->turma, $classes, true))) && !isset($paid[$student->ra])) {
                     continue;
                 }
                 if (!isset($summary[$student->turma])) {
@@ -370,7 +373,7 @@ final class Views
         echo '<div class="k8-grid"><section class="k8-card"><h3>Novo material</h3>';
         self::form('save_material', (int) $p->id);
         self::field('nome', 'Nome do material', '', 'text', 'required maxlength="255"');
-        self::field('turma_restrita', 'Turma (vazio = todas)');
+        self::class_select($p, 'turma_restrita', 'Turma deste produto', '', true);
         echo '<label>Período de entrega<select name="periodo_entrega">';
         foreach (Support::periods() as $period => $label) {
             if ((int) $p->etapas === 1 && Support::semester($period) === 2) {
@@ -398,7 +401,7 @@ final class Views
         echo '</form></section></div>';
         self::table_start(['Material', 'Turma', 'Período', 'Unidades/aluno', 'Saldo', 'Situação']);
         foreach ($materials as $m) {
-            echo '<tr><td>' . esc_html($m->nome) . '</td><td>' . esc_html($m->turma_restrita ?: 'Todas') . '</td><td>' . esc_html(Support::periods()[$m->periodo_entrega] ?? $m->periodo_entrega) . '</td><td>' . (int) $m->quantidade_por_aluno . '</td><td class="' . ($m->estoque_atual <= $m->estoque_minimo ? 'k8-error' : '') . '">' . (int) $m->estoque_atual . '</td><td>';
+            echo '<tr><td>' . esc_html($m->nome) . '</td><td>' . esc_html($m->turma_restrita ?: 'Turmas deste produto') . '</td><td>' . esc_html(Support::periods()[$m->periodo_entrega] ?? $m->periodo_entrega) . '</td><td>' . (int) $m->quantidade_por_aluno . '</td><td class="' . ($m->estoque_atual <= $m->estoque_minimo ? 'k8-error' : '') . '">' . (int) $m->estoque_atual . '</td><td>';
             self::form('toggle_material', (int) $p->id);
             echo '<input type="hidden" name="id" value="' . (int) $m->id . '">';
             self::button($m->ativo ? 'Desativar' : 'Ativar');
@@ -472,7 +475,7 @@ final class Views
         self::form('save_coupon', (int) $p->id, 'k8-form-grid');
         self::field('codigo', 'Código', '', 'text', 'required maxlength="50" pattern="[A-Za-z0-9_-]+"');
         self::field('percentual', 'Desconto (%)', '', 'number', 'required min="0.01" max="100" step="0.01"');
-        self::field('turma_restrita', 'Turma (vazio = todas)');
+        self::class_select($p, 'turma_restrita', 'Turma deste produto', '', true);
         self::field('validade', 'Validade', '', 'date');
         self::field('uso_maximo', 'Limite de usos (vazio = ilimitado)', '', 'number', 'min="1"');
         self::button('Salvar cupom');
@@ -480,7 +483,7 @@ final class Views
         $table = Support::table('cupons');
         self::table_start(['Código', 'Desconto', 'Turma', 'Validade', 'Usos', 'Situação']);
         foreach ($wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE produto_id = %d ORDER BY id DESC", $p->id)) as $c) {
-            echo '<tr><td>' . esc_html($c->codigo) . '</td><td>' . esc_html($c->percentual) . '%</td><td>' . esc_html($c->turma_restrita ?: 'Todas') . '</td><td>' . esc_html($c->validade ?: 'Sem prazo') . '</td><td>' . (int) $c->usado_count . ' / ' . esc_html($c->uso_maximo ?? '∞') . '</td><td>';
+            echo '<tr><td>' . esc_html($c->codigo) . '</td><td>' . esc_html($c->percentual) . '%</td><td>' . esc_html($c->turma_restrita ?: 'Turmas deste produto') . '</td><td>' . esc_html($c->validade ?: 'Sem prazo') . '</td><td>' . (int) $c->usado_count . ' / ' . esc_html($c->uso_maximo ?? '∞') . '</td><td>';
             self::form('toggle_coupon', (int) $p->id);
             echo '<input type="hidden" name="id" value="' . (int) $c->id . '">';
             self::button($c->ativo ? 'Desativar' : 'Ativar');
@@ -531,23 +534,23 @@ final class Views
         global $wpdb;
         self::shell();
         wp_enqueue_media();
-        echo '<h1>Produtos e preços</h1><div class="k8-grid"><section class="k8-card"><h2>Produtos cadastrados</h2><a href="' . esc_url(admin_url('admin.php?page=k8prod-products')) . '">+ Novo produto</a><ul class="k8-product-list">';
+        echo '<h1>Produtos e preços</h1><div class="k8-grid k8-product-editor-grid"><section class="k8-card"><h2>Produtos cadastrados</h2><a href="' . esc_url(admin_url('admin.php?page=k8prod-products')) . '">+ Novo produto</a><ul class="k8-product-list">';
         foreach (Support::products() as $product) {
             echo '<li><a href="' . esc_url(admin_url('admin.php?page=k8prod-products&produto_id=' . $product->id)) . '">' . esc_html($product->nome) . '</a> ' . ($product->ativo ? '' : '<span class="k8-muted">Inativo</span>') . '<br><code>[k8_produto id="' . (int) $product->id . '"]</code></li>';
         }
-        echo '</ul></section><section class="k8-card">';
+        echo '</ul></section><div class="k8-product-editor"><section class="k8-card">';
         $id = absint($_GET['produto_id'] ?? 0);
         $p = (object) ['nome' => '', 'descricao' => '', 'valor_padrao' => null, 'etapas' => 1, 'permitir_negativo' => 0, 'vencimento_dias' => 5, 'ativo' => 1,
-            'categoria' => 'didatico', 'imagem_id' => 0, 'publicado' => 1, 'ordem' => 0];
+            'categoria' => 'didatico', 'imagem_id' => 0, 'publicado' => 1, 'ordem' => 0, 'turmas_disponiveis' => '[]'];
         if ($id) {
             try {
                 $p = Support::product($id);
             } catch (\Throwable $e) {
-                echo '<p>' . esc_html($e->getMessage()) . '</p></section></div></div>';
+                echo '<p>' . esc_html($e->getMessage()) . '</p></section></div></div></div>';
                 return;
             }
         }
-        echo '<h2>' . ($id ? 'Editar produto' : 'Criar produto') . '</h2>';
+        echo '<h2>' . ($id ? 'Editar produto: ' . esc_html($p->nome) : 'Criar produto') . '</h2>';
         self::form('save_product', $id);
         self::field('nome', 'Nome', $p->nome, 'text', 'required maxlength="255"');
         echo '<label>Descrição<textarea name="descricao" rows="3">' . esc_textarea($p->descricao) . '</textarea></label>';
@@ -562,23 +565,26 @@ final class Views
         echo '</div><div class="k8-inline"><button class="k8-btn secondary" type="button" data-k8-image>Escolher imagem</button><button class="k8-btn secondary" type="button" data-k8-image-remove>Remover imagem</button></div>';
         self::field('ordem', 'Ordem de exibição no catálogo', $p->ordem, 'number');
         echo '<label class="k8-check"><input type="checkbox" name="publicado" value="1" ' . checked($p->publicado, 1, false) . '>Exibir este produto na home e no catálogo</label>';
-        self::field('valor_padrao', 'Preço padrão (vazio = somente turmas com preço)', $p->valor_padrao ?? '', 'text', 'inputmode="decimal"');
+        self::classes_form($p);
+        self::field('valor_padrao', 'Preço normal deste produto (R$)', $p->valor_padrao ?? '', 'text', 'inputmode="decimal"');
+        echo '<p class="k8-muted">Este preço vale somente para as turmas selecionadas acima. Se ficar vazio, cadastre um preço específico para cada turma deste produto.</p>';
         echo '<label>Modelo de entrega<select name="etapas"><option value="1" ' . selected($p->etapas, 1, false) . '>Entrega única</option><option value="2" ' . selected($p->etapas, 2, false) . '>Duas etapas / semestres</option></select></label>';
         self::field('vencimento_dias', 'Dias para vencimento da cobrança', $p->vencimento_dias, 'number', 'min="1" max="365" required');
         echo '<label class="k8-check"><input type="checkbox" name="permitir_negativo" value="1" ' . checked($p->permitir_negativo, 1, false) . '>Permitir saídas com estoque negativo</label><label class="k8-check"><input type="checkbox" name="ativo" value="1" ' . checked($p->ativo, 1, false) . '>Produto ativo para novas compras</label>';
         self::button('Salvar produto');
-        echo '</form></section></div>';
+        echo '</form></section>';
         if ($id) {
-            echo '<section class="k8-card"><h2>Publicar e administrar</h2><p><a target="_blank" rel="noopener" href="' . esc_url(Storefront::url($id)) . '">Abrir página de compra deste produto ↗</a></p><p>Fluxo de compra: <code>[k8_produto id="' . $id . '"]</code></p><p>Painel com seletor: <code>[k8_dashboard]</code></p><p>Painel iniciando neste produto: <code>[k8_dashboard produto="' . $id . '"]</code></p></section><section class="k8-card"><h2>Preço por turma</h2><p class="k8-muted">O preço da turma prevalece sobre o preço padrão. Sem preço padrão, somente as turmas cadastradas podem comprar.</p>';
+            self::discounts_form($id);
+            echo '<section class="k8-card"><h2>Publicar e administrar este produto</h2><p><a target="_blank" rel="noopener" href="' . esc_url(Storefront::url($id)) . '">Abrir página de compra deste produto ↗</a></p><p>Fluxo de compra: <code>[k8_produto id="' . $id . '"]</code></p><p>Painel iniciando neste produto: <code>[k8_dashboard produto="' . $id . '"]</code></p></section><section class="k8-card"><h2>Preço específico por turma deste produto</h2><p class="k8-muted">Opcional: o preço específico substitui o preço normal para esta turma. Ele só vale se a turma continuar selecionada no cadastro acima.</p>';
             self::form('save_price', $id, 'k8-inline');
-            self::field('turma', 'Turma (igual à base de alunos)', '', 'text', 'required maxlength="100"');
+            self::class_select($p, 'turma', 'Turma deste produto');
             self::field('valor', 'Valor (R$)', '', 'text', 'required inputmode="decimal"');
             self::button('Salvar preço');
             echo '</form>';
             $table = Support::table('valores_turma');
             self::table_start(['Turma', 'Preço', 'Ação']);
             foreach ($wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE produto_id = %d ORDER BY turma", $id)) as $price) {
-                echo '<tr><td>' . esc_html($price->turma) . '</td><td>' . esc_html(self::currency($price->valor)) . '</td><td>';
+                echo '<tr><td>' . esc_html($price->turma) . (ProductClasses::allows($p, $price->turma) ? '' : '<br><small>Turma não selecionada; preço sem efeito.</small>') . '</td><td>' . esc_html(self::currency($price->valor)) . '</td><td>';
                 self::form('remove_price', $id);
                 echo '<input type="hidden" name="id" value="' . (int) $price->id . '">';
                 self::button('Remover preço');
@@ -586,25 +592,51 @@ final class Views
             }
             self::table_end();
             echo '</section>';
-            self::discounts_form($id);
+        } else {
+            echo '<section class="k8-card"><h2>Preço por data deste produto</h2><p>Salve o produto com suas turmas para cadastrar os preços promocionais e as datas nesta mesma tela.</p></section>';
         }
-        echo '</div>';
+        echo '</div></div></div>';
+    }
+
+    private static function classes_form(object $product): void
+    {
+        $selected = ProductClasses::selected($product);
+        echo '<fieldset class="k8-product-classes"><legend>Turmas disponíveis para este produto</legend><p>Marque as turmas que podem comprar este produto.</p><div class="k8-class-options">';
+        foreach (ProductClasses::options($product) as $class) {
+            echo '<label class="k8-check"><input type="checkbox" name="turmas[]" value="' . esc_attr($class) . '" ' . checked(in_array($class, $selected, true), true, false) . '>' . esc_html($class) . '</label>';
+        }
+        echo '</div><label>Outras turmas deste produto (uma por linha)<textarea name="turmas_adicionais" rows="2" placeholder="Ex.: 5º Ano A"></textarea></label><p class="k8-muted">Use este campo se a turma ainda não estiver na lista. Cada turma informada será selecionada neste produto. Turmas novas importadas depois precisam ser selecionadas nos produtos em que poderão comprar.</p></fieldset>';
+    }
+
+    private static function class_select(object $product, string $name, string $label, string $value = '', bool $optional = false): void
+    {
+        $classes = ProductClasses::selected($product);
+        echo '<label>' . esc_html($label) . '<select name="' . esc_attr($name) . '" ' . ($optional ? '' : 'required') . '>';
+        echo '<option value="">' . ($optional ? 'Turmas selecionadas neste produto' : 'Selecione uma turma') . '</option>';
+        if ($value !== '' && !in_array($value, $classes, true)) {
+            echo '<option value="' . esc_attr($value) . '" selected>' . esc_html($value . ' (turma não selecionada no produto)') . '</option>';
+        }
+        foreach ($classes as $class) {
+            echo '<option value="' . esc_attr($class) . '" ' . selected($class, $value, false) . '>' . esc_html($class) . '</option>';
+        }
+        echo '</select></label>';
     }
 
     private static function discounts_form(int $product): void
     {
         global $wpdb;
+        $p = Support::product($product);
         $table = Support::table('descontos_data');
         $edit = absint($_GET['k8_discount'] ?? 0);
         $rule = $edit ? $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d AND produto_id = %d", $edit, $product)) : null;
         $rule = $rule ?: (object) ['id' => 0, 'titulo' => '', 'tipo' => 'percentual', 'valor' => '', 'turma_restrita' => '', 'inicio' => '', 'fim' => '', 'acumular_cupom' => 0];
-        echo '<section class="k8-card" id="descontos-data"><h2>Descontos por data</h2><p>Cadastre quantas faixas precisar. Durante o período, o catálogo e a compra mostram o preço normal, o preço com desconto e a data limite.</p><p class="k8-muted">A data final inclui o dia inteiro. Fuso do site: ' . esc_html(wp_timezone_string()) . '. Faixas sobrepostas usam o menor preço, sem somar descontos. Pedidos já gerados mantêm seu valor.</p>';
+        echo '<section class="k8-card" id="descontos-data"><h2>Preço por data deste produto</h2><p><strong>' . esc_html($p->nome) . '</strong> · Cadastre o preço promocional ou percentual e o período. A regra vale somente para este produto e suas turmas selecionadas.</p><p class="k8-muted">O catálogo e a compra mostram o valor normal, o valor menor e a data limite. A data final inclui o dia inteiro. Fuso do site: ' . esc_html(wp_timezone_string()) . '. Faixas sobrepostas usam o menor preço. Pedidos já gerados mantêm seu valor.</p>';
         self::form('save_discount', $product, 'k8-form-grid');
         echo '<input type="hidden" name="id" value="' . (int) $rule->id . '">';
         self::field('titulo', 'Nome do desconto', $rule->titulo, 'text', 'required maxlength="160" placeholder="Ex.: Compra antecipada"');
         echo '<label>Tipo<select name="tipo"><option value="percentual" ' . selected($rule->tipo, 'percentual', false) . '>Desconto percentual (%)</option><option value="preco" ' . selected($rule->tipo, 'preco', false) . '>Preço promocional (R$)</option></select></label>';
         self::field('valor', 'Percentual ou preço final', $rule->valor, 'text', 'required inputmode="decimal" placeholder="Ex.: 10 ou 890,00"');
-        self::field('turma_restrita', 'Turma (vazio = todas)', $rule->turma_restrita, 'text', 'maxlength="100"');
+        self::class_select($p, 'turma_restrita', 'Aplicar o preço por data às turmas', (string) $rule->turma_restrita, true);
         self::field('inicio', 'Início (vazio = imediato)', $rule->inicio, 'date');
         self::field('fim', 'Válido até (inclusive)', $rule->fim, 'date', 'required');
         echo '<label class="k8-check"><input type="checkbox" name="acumular_cupom" value="1" ' . checked($rule->acumular_cupom, 1, false) . '>Permitir acumular com cupom</label>';
@@ -617,7 +649,7 @@ final class Views
         $today = Discounts::today();
         foreach ($wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE produto_id = %d ORDER BY fim ASC,id ASC", $product)) as $row) {
             $status = !$row->ativo ? 'Inativo' : ($row->fim < $today ? 'Encerrado' : ($row->inicio && $row->inicio > $today ? 'Agendado' : 'Em vigor'));
-            echo '<tr><td><strong>' . esc_html($row->titulo) . '</strong><br>' . esc_html($row->turma_restrita ?: 'Todas as turmas') . '</td><td>' .
+            echo '<tr><td><strong>' . esc_html($row->titulo) . '</strong><br>' . esc_html($row->turma_restrita ?: 'Turmas selecionadas neste produto') . '</td><td>' .
                 esc_html($row->tipo === 'percentual' ? number_format((float) $row->valor, 2, ',', '.') . '%' : self::currency($row->valor)) . '<br><small>' .
                 ($row->acumular_cupom ? 'Acumula com cupom' : 'Não acumula') . '</small></td><td>' .
                 esc_html(($row->inicio ? Discounts::date_label($row->inicio) : 'Imediato') . ' até ' . Discounts::date_label($row->fim)) . '</td><td>' . esc_html($status) . '</td><td>';
