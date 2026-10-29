@@ -1,5 +1,14 @@
 # Alterações
 
+## Plugin 2.2.0
+
+- Cadastro de faixas de desconto por data, em percentual ou preço promocional, com início opcional, término inclusive e restrição por turma.
+- Preço original riscado, preço com desconto e data limite no catálogo e no fluxo de compra.
+- Cálculo no servidor e nova confirmação quando o preço mudar ou a promoção terminar com a página aberta.
+- Controle explícito de acumulação com cupons; sem acumulação, prevalece o melhor preço sem consumir cupom desnecessário.
+- Atualização dos preços no catálogo aberto, incluindo mudanças de período, e preservação da condição gravada em pedidos existentes.
+- Registro da promoção e dos valores original e promocional no pedido.
+
 ## Plugin 2.1.0
 
 - Incorpora o Sistema de Alunos — Busca Direta 4.1.0, com importação CSV, consolidação de responsáveis e reaproveitamento das tabelas existentes.

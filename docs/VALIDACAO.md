@@ -1,4 +1,21 @@
-# Validação — 28/10/2026
+# Validação — versão 2.2.0 — 29/10/2026
+
+Ambiente: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151.
+
+- 37 verificações novas de descontos por data aprovadas, incluindo início e fim do período, dia final inteiro, fuso do site, múltiplas faixas, restrição por turma, preço promocional, percentuais e arredondamento em centavos.
+- Comparação correta entre preços de turmas distintas, exibição de preço original/promocional pareados, cupons sem acumulação automática e acumulação somente quando permitida.
+- Conferência do preço ao gerar o pedido: uma cotação antiga é rejeitada antes de chamar a K8. O corpo AES da cobrança simulada foi decodificado para confirmar que a API recebe o preço com desconto.
+- Pedidos antigos conservam valores e metadados. Promoções não aumentam o preço normal e podem gerar cortesia por período.
+- 50 verificações anteriores do núcleo e 27 de alunos, catálogo e atualização também passaram. Os testes legados que dependem dos anexos originais não foram repetidos nesta execução.
+- No navegador: cadastro e edição de desconto pelo painel, preço original riscado + preço com desconto + data limite na home e na compra, layout de 390 px sem transbordamento e nenhum erro JavaScript.
+- Promoção encerrada com a página aberta: o catálogo consulta o preço atual, e o checkout exige nova confirmação sem emitir cobrança com a cotação antiga.
+- Verificação de atualização pelo mecanismo nativo do WordPress: pacote 2.2.0 e SHA-256 conferidos, seguido da migração a partir da versão 2.1.0 com conservação de pedido anterior.
+
+Nenhuma cobrança real foi criada. As chamadas K8 usam respostas simuladas na HTTP API do WordPress. Os registros e as telas de teste são sintéticos e não integram a instalação do plugin.
+
+---
+
+## Histórico da validação — 28/10/2026
 
 Ambiente descartável com WordPress 7.1.3, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151. Nenhum site de produção foi alterado durante a preparação.
 

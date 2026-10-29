@@ -26,8 +26,13 @@
     form.querySelectorAll('button').forEach(button => { button.disabled = active; });
   }
   function reload(result) {
-    if (result.redirect) window.location.assign(result.redirect);
-    else window.location.reload();
+    if (result.redirect) {
+      const target = new URL(result.redirect, window.location.href);
+      if (target.origin === location.origin && target.pathname === location.pathname && target.search === location.search) {
+        history.replaceState(null, '', target.href);
+        window.location.reload();
+      } else window.location.assign(target.href);
+    } else window.location.reload();
   }
 
   document.querySelectorAll('.k8prod[data-nonce]').forEach(root => {
@@ -145,7 +150,8 @@
     const checkout = root.querySelector('[data-k8-checkout]');
     const statusBox = root.querySelector('[data-k8-status]');
     const list = root.querySelector('[data-k8-students]');
-    const state = {nonce: '', token: '', coupon: '', student: null};
+    const state = {nonce: '', token: '', coupon: '', student: null, priceKey: ''};
+    let priceTimer;
     function saveSession() {
       try { sessionStorage.setItem(storageKey, JSON.stringify({token: state.token, student: state.student})); } catch (_) { /* Navegação privada. */ }
     }
@@ -159,9 +165,25 @@
       return rpc(root.dataset.ajax, payload);
     }
     function showPrice(quote) {
-      root.querySelector('[data-k8-price]').textContent = money(quote.valor) + (quote.cupom ? ` · cupom ${quote.cupom} (${quote.percentual}%)` : '');
+      state.priceKey = quote.chave_preco;
+      const price = root.querySelector('[data-k8-price]');
+      price.replaceChildren();
+      if (quote.original > quote.valor) price.append(node('del', money(quote.original), 'k8-original-price'));
+      price.append(node('strong', money(quote.valor)));
+      if (quote.promocao_ate) price.append(node('span', `Preço com desconto até ${quote.promocao_ate}`, 'k8-promo-until'));
+      if (quote.cupom) price.append(node('span', `Cupom ${quote.cupom}: ${quote.percentual}%`, 'k8-promo-until'));
       root.querySelector('.k8-methods').hidden = quote.valor <= 0;
       root.querySelector('[data-method=Cortesia]').hidden = quote.valor > 0;
+      clearTimeout(priceTimer);
+      priceTimer = setTimeout(async () => {
+        if (checkout.hidden || document.hidden || !state.token || checkout.getAttribute('aria-busy') === 'true') return;
+        try {
+          const fresh = await request('quote', {cupom: state.coupon});
+          if (fresh.chave_preco !== state.priceKey) notice(root, 'O preço foi atualizado. Confira o valor antes de confirmar.', true);
+          state.coupon = fresh.cupom;
+          showPrice(fresh);
+        } catch (error) { notice(root, error.message); }
+      }, Math.max(1, quote.refresh_after || 300) * 1000);
     }
     function renderOrder(order) {
       checkout.hidden = true;
@@ -169,6 +191,12 @@
       const card = node('div', undefined, 'k8-card');
       card.append(node('h3', order.pagamento === 'Paga' ? 'Pagamento confirmado' : order.status === 'verificacao' || order.status === 'iniciado' ? 'Pedido em conferência' : 'Aguardando pagamento'));
       card.append(node('p', `Pedido #${order.id} · ${money(order.valor)} · ${order.metodo}`));
+      if (order.valor_original > order.valor) {
+        const original = node('p', 'Valor original: ', 'k8-muted');
+        original.append(node('del', money(order.valor_original)));
+        card.append(original);
+      }
+      if (order.promocao_titulo) card.append(node('p', `Desconto aplicado: ${order.promocao_titulo}`, 'k8-muted'));
       if (order.status === 'verificacao' || order.status === 'iniciado') {
         card.append(node('p', 'A secretaria precisa conferir este pedido. Informe o número acima antes de tentar novamente.'));
       } else if (order.pagamento === 'Paga') {
@@ -207,6 +235,15 @@
         checkout.hidden = false;
       }
     }
+    document.addEventListener('visibilitychange', async () => {
+      if (document.hidden || checkout.hidden || !state.token || checkout.getAttribute('aria-busy') === 'true') return;
+      try {
+        const fresh = await request('quote', {cupom: state.coupon});
+        if (fresh.chave_preco !== state.priceKey) notice(root, 'O preço foi atualizado. Confira o valor antes de confirmar.', true);
+        state.coupon = fresh.cupom;
+        showPrice(fresh);
+      } catch (error) { notice(root, error.message); }
+    });
     async function choose(student) {
       state.student = {nome_aluno: student.nome_aluno, turma: student.turma, responsavel: student.responsavel};
       state.token = student.token;
@@ -253,7 +290,7 @@
         const quote = await request('quote', {cupom: new FormData(form).get('cupom')});
         state.coupon = quote.cupom;
         showPrice(quote);
-        notice(root, quote.cupom ? 'Cupom aplicado.' : 'Preço atualizado.', true);
+        notice(root, quote.aviso_cupom || (quote.cupom ? 'Cupom aplicado.' : 'Preço atualizado.'), true);
       } catch (error) {
         state.coupon = '';
         try { showPrice(await request('quote')); } catch (_) { checkout.hidden = true; }
@@ -264,7 +301,7 @@
       busy(checkout, true);
       notice(root, 'Registrando pedido. Aguarde…', true);
       try {
-        const order = await request('checkout', {metodo: button.dataset.method, cupom: state.coupon});
+        const order = await request('checkout', {metodo: button.dataset.method, cupom: state.coupon, chave_preco: state.priceKey});
         notice(root, '');
         renderOrder(order);
         if (order.redirect) window.location.assign(order.redirect);

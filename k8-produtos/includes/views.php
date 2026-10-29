@@ -586,8 +586,49 @@ final class Views
             }
             self::table_end();
             echo '</section>';
+            self::discounts_form($id);
         }
         echo '</div>';
+    }
+
+    private static function discounts_form(int $product): void
+    {
+        global $wpdb;
+        $table = Support::table('descontos_data');
+        $edit = absint($_GET['k8_discount'] ?? 0);
+        $rule = $edit ? $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d AND produto_id = %d", $edit, $product)) : null;
+        $rule = $rule ?: (object) ['id' => 0, 'titulo' => '', 'tipo' => 'percentual', 'valor' => '', 'turma_restrita' => '', 'inicio' => '', 'fim' => '', 'acumular_cupom' => 0];
+        echo '<section class="k8-card" id="descontos-data"><h2>Descontos por data</h2><p>Cadastre quantas faixas precisar. Durante o período, o catálogo e a compra mostram o preço normal, o preço com desconto e a data limite.</p><p class="k8-muted">A data final inclui o dia inteiro. Fuso do site: ' . esc_html(wp_timezone_string()) . '. Faixas sobrepostas usam o menor preço, sem somar descontos. Pedidos já gerados mantêm seu valor.</p>';
+        self::form('save_discount', $product, 'k8-form-grid');
+        echo '<input type="hidden" name="id" value="' . (int) $rule->id . '">';
+        self::field('titulo', 'Nome do desconto', $rule->titulo, 'text', 'required maxlength="160" placeholder="Ex.: Compra antecipada"');
+        echo '<label>Tipo<select name="tipo"><option value="percentual" ' . selected($rule->tipo, 'percentual', false) . '>Desconto percentual (%)</option><option value="preco" ' . selected($rule->tipo, 'preco', false) . '>Preço promocional (R$)</option></select></label>';
+        self::field('valor', 'Percentual ou preço final', $rule->valor, 'text', 'required inputmode="decimal" placeholder="Ex.: 10 ou 890,00"');
+        self::field('turma_restrita', 'Turma (vazio = todas)', $rule->turma_restrita, 'text', 'maxlength="100"');
+        self::field('inicio', 'Início (vazio = imediato)', $rule->inicio, 'date');
+        self::field('fim', 'Válido até (inclusive)', $rule->fim, 'date', 'required');
+        echo '<label class="k8-check"><input type="checkbox" name="acumular_cupom" value="1" ' . checked($rule->acumular_cupom, 1, false) . '>Permitir acumular com cupom</label>';
+        self::button($rule->id ? 'Atualizar desconto' : 'Cadastrar desconto');
+        echo '</form><p class="k8-muted">Sem acumulação, vale o melhor preço entre a promoção e o cupom; um cupom que não melhorar o valor não será consumido.</p>';
+        if ($rule->id) {
+            echo '<a href="' . esc_url(admin_url('admin.php?page=k8prod-products&produto_id=' . $product . '#descontos-data')) . '">Cadastrar outro desconto</a>';
+        }
+        self::table_start(['Nome / turma', 'Desconto', 'Período', 'Situação', 'Ações']);
+        $today = Discounts::today();
+        foreach ($wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE produto_id = %d ORDER BY fim ASC,id ASC", $product)) as $row) {
+            $status = !$row->ativo ? 'Inativo' : ($row->fim < $today ? 'Encerrado' : ($row->inicio && $row->inicio > $today ? 'Agendado' : 'Em vigor'));
+            echo '<tr><td><strong>' . esc_html($row->titulo) . '</strong><br>' . esc_html($row->turma_restrita ?: 'Todas as turmas') . '</td><td>' .
+                esc_html($row->tipo === 'percentual' ? number_format((float) $row->valor, 2, ',', '.') . '%' : self::currency($row->valor)) . '<br><small>' .
+                ($row->acumular_cupom ? 'Acumula com cupom' : 'Não acumula') . '</small></td><td>' .
+                esc_html(($row->inicio ? Discounts::date_label($row->inicio) : 'Imediato') . ' até ' . Discounts::date_label($row->fim)) . '</td><td>' . esc_html($status) . '</td><td>';
+            echo '<a href="' . esc_url(add_query_arg(['page' => 'k8prod-products', 'produto_id' => $product, 'k8_discount' => $row->id], admin_url('admin.php')) . '#descontos-data') . '">Editar</a>';
+            self::form('toggle_discount', $product);
+            echo '<input type="hidden" name="id" value="' . (int) $row->id . '">';
+            self::button($row->ativo ? 'Desativar' : 'Ativar');
+            echo '</form></td></tr>';
+        }
+        self::table_end();
+        echo '</section>';
     }
 
     public static function admin_settings(): void

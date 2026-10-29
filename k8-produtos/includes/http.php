@@ -37,6 +37,17 @@ final class Http
             wp_send_json_error(['message' => 'Atualize a página para continuar.'], 403);
         }
         try {
+            if ($op === 'catalog_prices') {
+                $requested = isset($data['ids']) && is_array($data['ids']) ? array_slice(array_map('absint', $data['ids']), 0, 100) : [];
+                $items = array_values(array_filter(Storefront::catalog(), static function ($p) use ($requested) {
+                    return in_array((int) $p->id, $requested, true);
+                }));
+                $html = [];
+                foreach (Discounts::catalog_prices($items) as $product_id => $price) {
+                    $html[$product_id] = Discounts::render_price($price);
+                }
+                wp_send_json_success(['prices' => (object) $html, 'refresh_after' => Discounts::refresh_after()]);
+            }
             $id = absint($data['produto_id'] ?? 0);
             $product = Support::product($id, true);
             if ($op === 'lookup') {
@@ -69,7 +80,7 @@ final class Http
             }
             if ($op === 'checkout') {
                 self::rate('checkout:' . $id . ':' . $person['ra'], 8, 10 * MINUTE_IN_SECONDS);
-                wp_send_json_success(Service::checkout($product, $person, Support::text($data, 'metodo'), Support::text($data, 'cupom')));
+                wp_send_json_success(Service::checkout($product, $person, Support::text($data, 'metodo'), Support::text($data, 'cupom'), Support::text($data, 'chave_preco')));
             }
             if ($op === 'status') {
                 $order = Service::active($id, $person['ra']);
@@ -157,7 +168,12 @@ final class Http
             }
             return ['redirect' => admin_url('admin.php?page=k8prod-products&produto_id=' . $id), 'produto_id' => $id];
         }
-        if ($op === 'save_price') {
+        if ($op === 'save_discount') {
+            Discounts::save($id, $data);
+            return ['redirect' => admin_url('admin.php?page=k8prod-products&produto_id=' . $id . '#descontos-data')];
+        } elseif ($op === 'toggle_discount') {
+            Discounts::toggle($id, absint($data['id'] ?? 0));
+        } elseif ($op === 'save_price') {
             $class = Support::text($data, 'turma');
             if (!$class || strlen($class) > 100) {
                 throw new \InvalidArgumentException('Informe a turma.');

@@ -28,7 +28,7 @@ function rejects(callable $fn, $name) {
 }
 function reset_plugin() {
     global $wpdb;
-    foreach (['produtos','valores_turma','pedidos','cupons','materiais','estoque_movimentos','entregas','entregas_log'] as $name) {
+    foreach (['produtos','valores_turma','pedidos','cupons','materiais','estoque_movimentos','entregas','entregas_log','descontos_data'] as $name) {
         $wpdb->query('DROP TABLE IF EXISTS ' . S::table($name));
     }
     delete_option('k8prod_schema');

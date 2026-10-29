@@ -50,13 +50,42 @@ final class Service
 
     public static function quote(object $product, array $person, string $code = ''): array
     {
-        $base = self::price($product, $person['turma']);
-        if ($base === null) {
+        $dated = Discounts::price($product, $person['turma']);
+        if ($dated === null) {
             throw new \InvalidArgumentException('Produto sem preço para esta turma. Contate a secretaria.');
         }
+        $base = $dated['original'];
+        $value = $dated['valor'];
+        $promotion = $dated['promocao'];
         $coupon = self::coupon((int) $product->id, $code, $person['turma']);
-        return ['original' => $base, 'valor' => max(0, round($base * (1 - ($coupon ? (float) $coupon->percentual : 0) / 100), 2)),
-            'cupom' => $coupon ? $coupon->codigo : '', 'percentual' => $coupon ? (float) $coupon->percentual : 0];
+        $coupon_applied = false;
+        $warning = '';
+        if ($coupon) {
+            $stack = $promotion && (bool) $promotion->acumular_cupom;
+            $coupon_base = (int) round(($stack ? $value : $base) * 100);
+            $percent = (int) round((float) $coupon->percentual * 100);
+            $with_coupon = max(0, (int) round($coupon_base * (10000 - $percent) / 10000)) / 100;
+            if ($with_coupon < $value) {
+                $value = $with_coupon;
+                $coupon_applied = true;
+                if (!$stack) {
+                    $promotion = null;
+                }
+            } else {
+                $warning = 'O desconto por data já oferece o melhor preço. O cupom não foi utilizado.';
+            }
+        }
+        $quote = ['original' => $base, 'valor' => $value,
+            'valor_apos_data' => $promotion ? $dated['valor'] : $base,
+            'promocao_id' => $promotion ? (int) $promotion->id : null,
+            'promocao_titulo' => $promotion ? $promotion->titulo : null,
+            'promocao_fim' => $promotion ? $promotion->fim : null,
+            'promocao_ate' => $promotion ? Discounts::date_label($promotion->fim) : null,
+            'cupom' => $coupon_applied ? $coupon->codigo : '', 'percentual' => $coupon_applied ? (float) $coupon->percentual : 0,
+            'aviso_cupom' => $warning, 'refresh_after' => Discounts::refresh_after()];
+        $quote['chave_preco'] = hash('sha256', wp_json_encode([$product->id, $person['turma'], $base, $value,
+            $quote['valor_apos_data'], $quote['promocao_id'], $quote['promocao_fim'], $quote['cupom'], $quote['percentual']]));
+        return $quote;
     }
 
     private static function release_coupon(object $order): void
@@ -69,9 +98,9 @@ final class Service
         }
     }
 
-    public static function checkout(object $product, array $person, string $method, string $code): array
+    public static function checkout(object $product, array $person, string $method, string $code, ?string $price_key = null): array
     {
-        return Support::lock('checkout:' . $product->id . ':' . $person['ra'], static function () use ($product, $person, $method, $code) {
+        return Support::lock('checkout:' . $product->id . ':' . $person['ra'], static function () use ($product, $person, $method, $code, $price_key) {
             global $wpdb;
             $orders = Support::table('pedidos');
             $existing = self::active((int) $product->id, $person['ra']);
@@ -82,6 +111,9 @@ final class Service
                 throw new \InvalidArgumentException('Escolha uma forma de pagamento válida.');
             }
             $quote = self::quote($product, $person, $code);
+            if ($price_key !== null && !hash_equals($quote['chave_preco'], $price_key)) {
+                throw new \InvalidArgumentException('O preço ou a promoção mudou. Confira o valor atualizado e confirme novamente.');
+            }
             if (($quote['valor'] <= 0) !== ($method === 'Cortesia')) {
                 throw new \InvalidArgumentException('Confira o valor e escolha a opção de pagamento correspondente.');
             }
@@ -101,7 +133,10 @@ final class Service
                 Support::must($wpdb->insert($orders, array_merge($person, [
                     'produto_id' => $product->id, 'active_key' => hash('sha256', $product->id . ':' . $person['ra']),
                     'valor' => $quote['valor'], 'valor_original' => $quote['original'], 'cupom_codigo' => $quote['cupom'] ?: null,
-                    'cupom_reservado' => $quote['cupom'] ? 1 : 0, 'origem' => $quote['valor'] <= 0 ? 'cupom_gratuito' : 'k8',
+                    'promocao_id' => $quote['promocao_id'], 'promocao_titulo' => $quote['promocao_titulo'],
+                    'promocao_fim' => $quote['promocao_fim'], 'valor_apos_data' => $quote['valor_apos_data'],
+                    'cupom_reservado' => $quote['cupom'] ? 1 : 0,
+                    'origem' => $quote['valor'] > 0 ? 'k8' : ($quote['cupom'] ? 'cupom_gratuito' : ($quote['promocao_id'] ? 'promocao_data' : 'gratuito')),
                     'metodo' => $method, 'status' => $quote['valor'] <= 0 ? 'gerado' : 'iniciado',
                     'status_pagamento' => $quote['valor'] <= 0 ? 'Paga' : null, 'criado_em' => current_time('mysql'),
                 ])));
@@ -148,6 +183,8 @@ final class Service
         global $wpdb;
         $deliveries = Support::table('entregas');
         return ['id' => (int) $order->id, 'valor' => (float) $order->valor, 'metodo' => $order->metodo,
+            'valor_original' => (float) ($order->valor_original ?? $order->valor),
+            'promocao_titulo' => $order->promocao_titulo ?? null,
             'status' => $order->status, 'pagamento' => $order->status_pagamento ?: 'Pendente',
             'redirect' => $order->cobranca_id && $order->status_pagamento !== 'Paga' && $order->status_pagamento !== 'Cancelada'
                 ? Client::checkout($order->cobranca_id) : null,

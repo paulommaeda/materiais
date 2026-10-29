@@ -5,7 +5,7 @@ Site WordPress com um plugin unificado e um tema próprio. Cadastro e importaç�
 ## Instalar
 
 1. Faça backup do WordPress e do banco antes de migrar os plugins anteriores.
-2. Baixe [k8-produtos-2.1.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.1.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
+2. Baixe [k8-produtos-2.2.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.2.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
 3. Baixe [bmt-educacional-1.0.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/bmt-educacional-1.0.0.zip), instale em **Aparência → Temas → Adicionar tema → Enviar tema** e ative **BMT Educacional**.
 4. Abra **K8 Produtos → Alunos**. A base anterior `lista_alunos_v4` e os vínculos de `sba_guardians` são reaproveitados. Importe o CSV quando precisar atualizar o cadastro.
 5. Em **K8 Produtos → Produtos e preços**, cadastre categoria, descrição, imagem opcional e preço padrão ou valores por turma. Marque **Exibir este produto na home e no catálogo**.
@@ -29,6 +29,16 @@ Para publicar uma próxima versão:
 4. No WordPress, use **Verificar atualizações**. A consulta normal usa cache de até uma hora e segue a agenda do próprio WordPress.
 
 Não basta editar arquivos PHP sem gerar os pacotes e aumentar a versão. Os sites só recebem uma atualização quando o manifesto anunciar uma versão maior. O canal depende de acesso HTTPS do servidor a `raw.githubusercontent.com`.
+
+## Descontos por data
+
+Em **K8 Produtos → Produtos e preços**, abra o produto e use **Descontos por data**. Cadastre o nome, o tipo (percentual ou preço promocional), a data inicial opcional e a data final. Você pode criar várias faixas e restringi-las a uma turma.
+
+Durante a vigência, o catálogo e a compra mostram o preço original riscado, o valor menor e **“Até DD/MM/AAAA”**. O último dia é incluído por inteiro no fuso configurado em **Configurações → Geral** do WordPress. Depois, o preço normal volta automaticamente. Quando houver mais de uma faixa válida, vale o menor preço; as faixas não são somadas.
+
+A opção **Permitir acumular com cupom** começa desmarcada. Sem ela, aplica-se o melhor preço entre a promoção e o cupom, e um cupom que não reduzir o valor não é consumido. Com a opção marcada, o cupom é aplicado sobre o preço promocional.
+
+O valor é conferido no servidor ao gerar o pedido. Se a promoção vencer ou o preço mudar depois da consulta, o comprador precisa conferir e confirmar o novo valor. Pedidos já gerados conservam os valores registrados, mesmo após o fim da campanha. O catálogo consulta novamente os preços ao abrir ou voltar à página e nas mudanças de período; após atualizar o plugin, limpe o cache da home/CDN para carregar os novos recursos.
 
 ## Sistema de alunos incorporado
 

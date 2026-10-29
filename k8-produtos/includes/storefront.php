@@ -95,8 +95,10 @@ final class Storefront
             $category = '';
         }
         $items = self::catalog($category);
+        $prices = Discounts::catalog_prices($items);
+        wp_enqueue_script('bmt-catalog', plugins_url('assets/storefront.js', K8PROD_FILE), [], K8PROD_VERSION, true);
         ob_start();
-        echo '<div class="bmt-catalog">';
+        echo '<div class="bmt-catalog" data-bmt-catalog data-ajax="' . esc_url(admin_url('admin-ajax.php')) . '">';
         if ($atts['filtros'] === '1') {
             echo '<nav class="bmt-categories" aria-label="Categorias de produtos">';
             foreach (['' => 'Todos'] + self::categories() as $key => $label) {
@@ -111,17 +113,14 @@ final class Storefront
             echo '<div class="bmt-products">';
             foreach ($items as $p) {
                 $cat = isset(self::categories()[$p->categoria]) ? $p->categoria : 'didatico';
-                $price = $p->valor_padrao !== null ? (float) $p->valor_padrao : (float) $p->menor_valor_turma;
-                if ($p->menor_valor_turma !== null) {
-                    $price = min($price, (float) $p->menor_valor_turma);
-                }
-                echo '<article class="bmt-product-card"><a class="bmt-product-art art-' . esc_attr($cat) . '" href="' . esc_url(self::url((int) $p->id)) . '" aria-label="' . esc_attr('Ver ' . $p->nome) . '">';
+                $price = $prices[$p->id];
+                echo '<article class="bmt-product-card" data-bmt-product="' . (int) $p->id . '"><a class="bmt-product-art art-' . esc_attr($cat) . '" href="' . esc_url(self::url((int) $p->id)) . '" aria-label="' . esc_attr('Ver ' . $p->nome) . '">';
                 if ($p->imagem_id && wp_attachment_is_image((int) $p->imagem_id)) {
                     echo wp_get_attachment_image((int) $p->imagem_id, 'medium_large', false, ['loading' => 'lazy']);
                 } else {
                     echo '<span class="bmt-art-icon">' . self::icon($cat) . '</span><span class="bmt-art-caption">' . esc_html(self::categories()[$cat]) . '</span>';
                 }
-                echo '</a><div class="bmt-product-info"><span class="bmt-product-category">' . esc_html(self::categories()[$cat]) . '</span><h3><a href="' . esc_url(self::url((int) $p->id)) . '">' . esc_html($p->nome) . '</a></h3><p>' . esc_html(wp_trim_words($p->descricao ?: 'Selecione o aluno e consulte as condições para a sua turma.', 20)) . '</p><div class="bmt-product-bottom"><div><small>A partir de</small><strong>' . esc_html('R$ ' . number_format($price, 2, ',', '.')) . '</strong></div><a class="bmt-buy-link" href="' . esc_url(self::url((int) $p->id)) . '">Ver produto <span aria-hidden="true">↗</span></a></div></div></article>';
+                echo '</a><div class="bmt-product-info"><span class="bmt-product-category">' . esc_html(self::categories()[$cat]) . '</span><h3><a href="' . esc_url(self::url((int) $p->id)) . '">' . esc_html($p->nome) . '</a></h3><p>' . esc_html(wp_trim_words($p->descricao ?: 'Selecione o aluno e consulte as condições para a sua turma.', 20)) . '</p><div class="bmt-product-bottom"><div data-bmt-price>' . Discounts::render_price($price) . '</div><a class="bmt-buy-link" href="' . esc_url(self::url((int) $p->id)) . '">Ver produto <span aria-hidden="true">↗</span></a></div></div></article>';
             }
             echo '</div>';
         }

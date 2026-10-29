@@ -1,4 +1,4 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.1.0
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.2.0
 
 Plugin único criado a partir dos cinco arquivos de Paulo Maeda. Reúne cadastro de produtos, página pública de compra, cobrança K8, cupons, estoque, entregas com assinatura e painel por produto. Não exige WooCommerce.
 
@@ -13,7 +13,7 @@ Plugin e tema consultam atualizações no repositório público `paulommaeda/mat
 ## Instalação e migração
 
 1. Faça um backup do banco e teste o ZIP em uma cópia do seu WordPress.
-2. Em **Plugins → Adicionar plugin → Enviar plugin**, envie `k8-produtos-2.1.0.zip` e ative.
+2. Em **Plugins → Adicionar plugin → Enviar plugin**, envie `k8-produtos-2.2.0.zip` e ative.
 3. A ativação identifica e desativa os plugins antigos de pagamento, dashboard, materiais e Sistema de Alunos — Busca Direta pelos nomes exatos dos cabeçalhos. O arquivo do dashboard de estoque era um complemento e agora está incorporado. Não mantenha cópias dos arquivos antigos executando em tema, mu-plugin ou gerenciador de snippets.
 4. Se a tabela antiga de pedidos existir, os registros atuais são vinculados ao produto **Material Didático — legado**. Abra **K8 Produtos → Produtos e preços** para renomeá-lo, por exemplo, para “Material Didático 2027”.
 5. Em **K8 Produtos → Configurações**, confira o mapeamento de alunos e os endpoints K8. As credenciais salvas pelos plugins anteriores são reaproveitadas.
@@ -24,6 +24,18 @@ A atualização reaproveita as tabelas `PREFIXO_k8p_*`, preservando IDs e os dad
 Os saldos existentes são mantidos exatamente como estão. O erro de duplicação do estoque inicial foi corrigido para **novos cadastros**. Saldos antigos que já tenham sido duplicados precisam de ajuste após conferência física; o plugin não tenta adivinhar o saldo correto.
 
 Não reative os plugins antigos depois da migração: eles não conhecem o vínculo de produto e podem misturar dados ou tentar recriar índices globais. Para desfazer a implantação e voltar ao modelo anterior, restaure o backup completo. Desativar ou excluir este plugin pelo WordPress não apaga suas tabelas.
+
+## Descontos por data
+
+Abra o produto em **K8 Produtos → Produtos e preços** e use o bloco **Descontos por data**. É possível informar um percentual ou um preço promocional, data de início opcional, data final obrigatória e turma opcional. Deixe o início vazio para aplicar imediatamente. O prazo vale até o fim do dia informado, conforme o fuso do WordPress.
+
+O catálogo e a compra exibem o preço original riscado, o preço com desconto e a validade. Faixas sobrepostas usam o menor preço válido, sem somá-las. O preço por turma continua prevalecendo sobre o preço padrão antes do cálculo do desconto. O catálogo mantém o preço original e o promocional sempre pareados à mesma turma.
+
+A acumulação com cupons só ocorre se você marcar essa opção no desconto. Sem acumulação, o sistema escolhe o melhor preço entre promoção e cupom, sem consumir um cupom que não melhorar a oferta. Um preço promocional nunca aumenta o preço normal. A opção de preço final zero permite registrar uma cortesia por período.
+
+Novos pedidos conferem a condição no servidor. Se o preço mudar após a consulta, a cobrança não é criada até a pessoa conferir e confirmar o valor atualizado. Pedidos já gerados mantêm sua condição original; a data da campanha não altera uma cobrança já emitida. A promoção e os valores original/promocional ficam registrados no pedido.
+
+Após instalar esta versão, limpe o cache da home/CDN para carregar a atualização do catálogo. As páginas abertas consultam os preços novamente, inclusive ao voltar para a aba e nas mudanças de período.
 
 ## Criar e publicar produtos
 
