@@ -1,4 +1,23 @@
-# Validação — versão 2.2.0 — 29/10/2026
+# Validação — versão 2.3.0 — 29/10/2026
+
+Ambiente local descartável: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151. Nenhum acesso ao WordPress de produção.
+
+- Reproduzida a falha de acesso à página Alunos: registrar o submenu antes do menu pai gerava o hook incorreto e resposta 403. Corrigida a prioridade do registro e acrescentada verificação de regressão.
+- 44 verificações de importação e API: CSV legado, cabeçalhos acentuados e fora de ordem, campos opcionais, colunas extras, diretiva `sep=;`, tabulação, UTF-16LE/BE, erros de upload, identidade, CPF, tipos JSON e limites de permissão.
+- JSON com vários responsáveis, validação sem gravação, atualização sem duplicar, preservação de ID, remoção de vínculos substituídos, invalidação dos contextos de compra e relatório com origem API.
+- Lista vazia, CPF inválido, conflito de identidade, opções desconhecidas e substituição sem flag explícita não alteram a base. Falha simulada de gravação reverte a transação inteira.
+- 50 verificações do núcleo, 27 de alunos/catálogo/atualização e 37 de descontos também passaram: **158 verificações de integração no total**. Casos antigos dependentes dos anexos originais não foram repetidos.
+- Testes HTTP com autenticação nativa por Senha de aplicação: JSON e multipart CSV reais. Requisições anônimas e com senha normal recebem 401; operador sem `manage_options` recebe 403.
+- No navegador: login administrativo, acesso ao submenu Alunos, validação sem gravar, importação pelo formulário nativo e exibição dos cadastros. O terceiro responsável importado pela API encontra o aluno no fluxo de compra.
+- Erros reais de `upload_max_filesize` e `post_max_size` testados com arquivos acima do limite. O formulário retorna ao painel com orientação; o servidor de teste usa `display_errors=Off`, necessário para que avisos emitidos pelo PHP antes do WordPress não prejudiquem os cabeçalhos HTTP.
+- Atualização 2.2.0 → 2.3.0 pelo `Plugin_Upgrader` nativo, com download simulado dos bytes reais do pacote e conferência SHA-256: pedido e aluno anteriores preservados e API disponível após atualizar.
+- Inspeção visual da página de alunos em 1440 px e 390 px, URL da API quebrando linha, sem transbordamento horizontal da página e sem erros JavaScript.
+
+Dados de teste sintéticos; nenhum aluno real, cobrança ou mensagem real foi enviado. A Senha de aplicação do teste existe apenas no WordPress local. A autenticação HTTP sem TLS foi habilitada exclusivamente pela configuração `WP_ENVIRONMENT_TYPE=local` desse ambiente; a integração publicada orienta HTTPS.
+
+---
+
+## Histórico da validação — versão 2.2.0 — 29/10/2026
 
 Ambiente: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151.
 

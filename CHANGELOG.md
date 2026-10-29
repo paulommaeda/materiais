@@ -1,5 +1,16 @@
 # Alterações
 
+## Plugin 2.3.0
+
+- Corrige o registro da página Alunos após o menu pai, eliminando a falha de acesso ao importador no painel.
+- Importação por cabeçalhos, com ordem variável, nomes usuais em português e colunas opcionais; mantém o CSV legado de dez colunas.
+- Aceita UTF-16 e tabulação do Excel, diretiva `sep=;` e colunas opcionais vazias no final.
+- Mostra o limite real de upload da hospedagem e trata erros de upload e POST acima do limite sem perder a página de retorno.
+- Adiciona validação do arquivo sem importar e avisos para alunos sem vínculo por CPF ou com busca configurada em base externa.
+- Nova API REST autenticada para JSON e CSV, com Senhas de aplicação, validação sem gravação, atualização por RA e substituição total explícita.
+- API aceita vários responsáveis, preserva IDs na atualização, registra resumo no painel e mantém a gravação transacional.
+- Exemplos de integração, formatos, limites e respostas em `docs/API-ALUNOS.md`.
+
 ## Plugin 2.2.0
 
 - Cadastro de faixas de desconto por data, em percentual ou preço promocional, com início opcional, término inclusive e restrição por turma.

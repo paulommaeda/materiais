@@ -45,5 +45,5 @@ def build(slug, kind, header, name, description):
 
 if __name__ == '__main__':
     assert (ROOT / 'k8-produtos/includes/update-channel.php').read_bytes() == (ROOT / 'bmt-educacional/update-channel.php').read_bytes(), 'Sincronize o canal de atualização nos dois componentes.'
-    build('k8-produtos', 'plugin', 'k8-produtos.php', 'K8 Produtos, Alunos, Cobranças e Entregas', '<p>Catálogo, produtos por shortcode, base de alunos com CSV, cobrança K8, cupons, estoque e entrega com assinatura.</p>')
+    build('k8-produtos', 'plugin', 'k8-produtos.php', 'K8 Produtos, Alunos, Cobranças e Entregas', '<p>Catálogo, produtos por shortcode, base de alunos com CSV e API, cobrança K8, cupons, estoque e entrega com assinatura.</p>')
     build('bmt-educacional', 'theme', 'style.css', 'BMT Educacional', '<p>Site BMT Comercial com catálogo integrado de materiais didáticos, paradidáticos e eventos escolares.</p>')

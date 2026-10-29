@@ -1,4 +1,4 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.2.0
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.3.0
 
 Plugin único criado a partir dos cinco arquivos de Paulo Maeda. Reúne cadastro de produtos, página pública de compra, cobrança K8, cupons, estoque, entregas com assinatura e painel por produto. Não exige WooCommerce.
 
@@ -72,7 +72,7 @@ A identificação agora acontece no próprio shortcode. Parâmetros de URL com R
 
 ## Base de alunos
 
-A busca inicial usa a base de alunos incorporada ao plugin. Sua atualização pode ser feita pelo importador de CSV no menu Alunos. O mapeamento abaixo também permite conectar uma base externa; a importação integrada grava sempre nas tabelas padrão. Se optar por uma base externa, mantenha o mapeamento coerente com essa escolha.
+A busca inicial usa a base de alunos incorporada ao plugin. Sua atualização pode ser feita pelo importador de CSV no menu Alunos, incluindo validação sem gravar. A partir da versão 2.3.0, também existe **POST `/wp-json/k8-produtos/v1/alunos/importar`**, autenticado com login de administrador e Senha de aplicação do WordPress por HTTPS. A URL exata e o guia da API estão no menu Alunos. A API aceita JSON com vários responsáveis ou arquivo CSV em multipart, com as mesmas validações e gravação transacional do painel. O mapeamento abaixo também permite conectar uma base externa; a importação integrada grava sempre nas tabelas padrão. Se optar por uma base externa, mantenha o mapeamento coerente com essa escolha.
 
 Mapeamento inicial:
 

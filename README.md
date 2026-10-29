@@ -5,7 +5,7 @@ Site WordPress com um plugin unificado e um tema próprio. Cadastro e importaç�
 ## Instalar
 
 1. Faça backup do WordPress e do banco antes de migrar os plugins anteriores.
-2. Baixe [k8-produtos-2.2.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.2.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
+2. Baixe [k8-produtos-2.3.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.3.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
 3. Baixe [bmt-educacional-1.0.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/bmt-educacional-1.0.0.zip), instale em **Aparência → Temas → Adicionar tema → Enviar tema** e ative **BMT Educacional**.
 4. Abra **K8 Produtos → Alunos**. A base anterior `lista_alunos_v4` e os vínculos de `sba_guardians` são reaproveitados. Importe o CSV quando precisar atualizar o cadastro.
 5. Em **K8 Produtos → Produtos e preços**, cadastre categoria, descrição, imagem opcional e preço padrão ou valores por turma. Marque **Exibir este produto na home e no catálogo**.
@@ -44,7 +44,9 @@ O valor é conferido no servidor ao gerar o pedido. Se a promoção vencer ou o 
 
 A integração foi feita a partir do **PHP Sistema de Alunos — Busca Direta 4.1.0** fornecido por Paulo Maeda. O guia antigo anexado descrevia SMS/NX de uma versão anterior; o código atual não usa OTP, SMS, NX nem consulta financeira externa, e esse funcionamento foi mantido.
 
-- CSV com as mesmas dez colunas; [modelo](k8-produtos/assets/modelo-alunos.csv).
+- Importação CSV com cabeçalhos em qualquer ordem, colunas opcionais, separadores e codificações do Excel; [modelo](k8-produtos/assets/modelo-alunos.csv). O formato antigo de dez colunas continua aceito.
+- Validação do arquivo sem gravar, limite de upload real da hospedagem e mensagens específicas de erro.
+- API autenticada de importação por JSON ou CSV: **POST `/wp-json/k8-produtos/v1/alunos/importar`**, com Senha de aplicação de administrador. A URL do site aparece no menu Alunos; consulte os [exemplos e o contrato da API](docs/API-ALUNOS.md).
 - RA repetido consolida vários responsáveis. O terceiro responsável e os seguintes também podem consultar e comprar para o aluno.
 - CPF com dígito inválido, colunas incorretas ou dados conflitantes de um mesmo RA interrompem a importação antes de alterar a base.
 - Importação incremental substitui todos os vínculos de cada RA enviado. A opção de substituição total remove alunos e vínculos ausentes no CSV, preservando pedidos e entregas históricos.
@@ -52,6 +54,8 @@ A integração foi feita a partir do **PHP Sistema de Alunos — Busca Direta 4.
 - A base já existente é mantida; vínculos adicionais não são reduzidos às duas colunas antigas.
 
 Os antigos plugins de pagamento, materiais, dashboard e o sistema de alunos são desativados ao ativar o plugin unificado. Remova também cópias avulsas desses códigos em temas, mu-plugins ou snippets. Não reative os plugins antigos sobre a base unificada.
+
+A versão 2.3.0 também corrige a ordem de registro do submenu Alunos, que podia fazer o WordPress negar acesso à página de importação.
 
 ## Shortcodes e administração
 
