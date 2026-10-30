@@ -39,6 +39,37 @@
     } else window.location.reload();
   }
 
+  function closePaymentWindow(paymentWindow) {
+    try { if (paymentWindow && !paymentWindow.closed) paymentWindow.close(); }
+    catch (_) { /* A janela pode ter sido fechada pelo navegador. */ }
+  }
+  function preparePaymentWindow() {
+    let paymentWindow = null;
+    try {
+      // Abrir durante o clique, antes da requisição, evita o bloqueio de pop-ups.
+      paymentWindow = window.open('about:blank', '_blank', 'popup,width=1100,height=800');
+      if (!paymentWindow) return null;
+      paymentWindow.opener = null;
+      paymentWindow.document.title = 'Pagamento K8';
+      paymentWindow.document.body.textContent = 'Preparando seu pagamento na K8. Aguarde…';
+      return paymentWindow;
+    } catch (_) {
+      closePaymentWindow(paymentWindow);
+      return null;
+    }
+  }
+  function openPaymentWindow(paymentWindow, url) {
+    try {
+      if (!paymentWindow || paymentWindow.closed) return false;
+      paymentWindow.location.replace(url);
+    } catch (_) {
+      closePaymentWindow(paymentWindow);
+      return false;
+    }
+    try { paymentWindow.focus(); } catch (_) { /* O navegador decide o foco. */ }
+    return true;
+  }
+
   document.querySelectorAll('.k8prod[data-nonce]').forEach(root => {
     async function send(form) {
       const payload = new FormData(form);
@@ -161,7 +192,7 @@
     const statusBox = root.querySelector('[data-k8-status]');
     const list = root.querySelector('[data-k8-students]');
     const state = {nonce: '', token: '', coupon: '', student: null, priceKey: ''};
-    let priceTimer;
+    let priceTimer, refreshingOrder = false;
     function saveSession() {
       try { sessionStorage.setItem(storageKey, JSON.stringify({token: state.token, student: state.student})); } catch (_) { /* Navegação privada. */ }
     }
@@ -239,7 +270,11 @@
       if (order.redirect) {
         const link = node('a', 'Continuar pagamento na K8', 'k8-btn');
         link.href = order.redirect;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.setAttribute('aria-label', 'Continuar pagamento na K8 (abre em nova janela)');
         card.append(link);
+        card.append(node('p', 'O pagamento abre em outra janela. Depois, volte aqui para acompanhar a confirmação.', 'k8-muted'));
       }
       const refresh = node('button', 'Atualizar situação', 'k8-btn secondary');
       refresh.type = 'button';
@@ -264,8 +299,17 @@
         checkout.hidden = false;
       }
     }
+    async function refreshVisibleOrder() {
+      if (refreshingOrder || document.hidden || !root.isConnected || !state.token || !checkout.hidden || !statusBox.childElementCount || checkout.getAttribute('aria-busy') === 'true') return;
+      refreshingOrder = true;
+      try { await status(); }
+      catch (error) { notice(root, error.message); }
+      finally { refreshingOrder = false; }
+    }
+    window.addEventListener('focus', refreshVisibleOrder);
     document.addEventListener('visibilitychange', async () => {
-      if (document.hidden || checkout.hidden || !state.token || checkout.getAttribute('aria-busy') === 'true') return;
+      if (document.hidden || !state.token || checkout.getAttribute('aria-busy') === 'true') return;
+      if (checkout.hidden) { await refreshVisibleOrder(); return; }
       try {
         const fresh = await request('quote', {cupom: state.coupon});
         if (fresh.chave_preco !== state.priceKey) notice(root, 'O preço ou as condições de pagamento foram atualizados. Confira antes de confirmar.', true);
@@ -341,14 +385,22 @@
       } finally { busy(form, false); }
     });
     root.querySelectorAll('[data-method]').forEach(button => button.addEventListener('click', async () => {
+      if (checkout.getAttribute('aria-busy') === 'true') return;
+      const paymentWindow = button.dataset.method === 'Cortesia' ? null : preparePaymentWindow();
       busy(checkout, true);
       notice(root, 'Registrando pedido. Aguarde…', true);
       try {
         const order = await request('checkout', {metodo: button.dataset.method, cupom: state.coupon, chave_preco: state.priceKey});
         notice(root, '');
         renderOrder(order);
-        if (order.redirect) window.location.assign(order.redirect);
+        if (order.redirect) {
+          const opened = openPaymentWindow(paymentWindow, order.redirect);
+          notice(root, opened
+            ? 'O pagamento foi aberto em outra janela. Volte aqui depois de pagar para acompanhar a confirmação.'
+            : 'Para abrir o pagamento em uma nova janela, clique em “Continuar pagamento na K8”.', true);
+        } else closePaymentWindow(paymentWindow);
       } catch (error) {
+        closePaymentWindow(paymentWindow);
         notice(root, error.message);
         try { await status(); } catch (_) { /* Mantém a mensagem original. */ }
       } finally { busy(checkout, false); }

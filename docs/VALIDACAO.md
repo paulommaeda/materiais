@@ -1,4 +1,20 @@
-# Validação — versão 2.6.0 — 30/10/2026
+# Validação — versão 2.6.1 — 30/10/2026
+
+- **77 verificações JavaScript aprovadas** em V8, executando o código de `assets/app.js` com DOM, janelas, armazenamento e RPC simulados.
+- Pix, boleto e cartão preparam a janela no clique, antes da requisição de checkout. A URL retornada é aberta nessa janela, e a loja mantém o pedido e seu acompanhamento.
+- A janela K8 fica sem acesso a `opener`. O link de continuação usa `target="_blank"`, `rel="noopener noreferrer"` e descrição acessível.
+- Bloqueio pelo navegador, exceção ao abrir, fechamento pelo comprador, falha ao navegar e falha ao remover o opener mantêm o link para continuação. Falha de foco não fecha um pagamento já aberto.
+- Rejeição de cobrança fecha a janela de espera e mantém a mensagem de erro. Pedidos em conferência, sem URL ou já pagos também fecham a espera. Cortesia não abre janela.
+- Ao voltar à loja, a situação é consultada e um pagamento confirmado é apresentado. Foco e visibilidade simultâneos não duplicam a consulta; cliques repetidos durante o envio não abrem outra janela nem enviam outra compra.
+- A versão 2.6.0 reprova a asserção de regressão que exige abrir a janela antes da requisição. A sintaxe do JavaScript alterado e da fixture foi validada.
+- O workflow do GitHub executa a mesma fixture em Node.js, confere sintaxe JavaScript e PHP e gera os pacotes com o script Python original. Não houve execução nova de WordPress, navegador real ou atualização nativa: o ambiente local estava indisponível. A validação anterior permanece abaixo, identificada por versão.
+- O pacote é extraído e comparado arquivo a arquivo com as fontes, com conferência de CRC-32, inventário e SHA-256 do manifesto. Não houve acesso à conta K8, cobrança ou mensagem real.
+
+Teste reproduzível com Node.js 18+: `node k8-produtos/tests/payment-window.js`.
+
+---
+
+## Histórico da validação — versão 2.6.0 — 30/10/2026
 
 Ambiente local descartável: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151. Nenhum acesso ao WordPress de produção.
 

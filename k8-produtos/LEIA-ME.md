@@ -1,4 +1,4 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.6.0
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.6.1
 
 Plugin único criado a partir dos cinco arquivos de Paulo Maeda. Reúne cadastro de produtos, página pública de compra, cobrança K8, cupons, estoque, entregas com assinatura e painel por produto. Não exige WooCommerce.
 
@@ -56,6 +56,8 @@ Exemplos, substituindo os IDs pelos exibidos no seu painel:
 | Painel iniciando no estoque | `[k8_dashboard produto="2" aba="stock"]` |
 
 O fluxo público completo é **CPF do responsável → seleção do aluno → preço e cupom → Pix, boleto, cartão ou cortesia → acompanhamento do pagamento e da entrega**. O pagamento é realizado no checkout hospedado da K8. O plugin não coleta dados de cartão.
+
+O pagamento na K8 abre em **outra janela**, mantendo a loja aberta para acompanhar o pedido. Se a abertura for bloqueada ou a janela for fechada, use **Continuar pagamento na K8**. Ao voltar à loja, a situação é consultada novamente; também é possível usar **Atualizar situação**. O navegador pode abrir uma aba separada, especialmente no celular. Cortesias são confirmadas na própria loja.
 
 O mesmo aluno pode comprar produtos diferentes. Para cada combinação **produto + RA**, existe somente uma compra ativa. Trocar o método ou repetir o clique recupera o pedido existente. Um pedido inadimplente continua ativo, pois sua cobrança ainda pode ser paga. Uma nova compra só é liberada após o cancelamento confirmado da anterior. Para outra campanha ou ano letivo, crie outro produto.
 

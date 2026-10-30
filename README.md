@@ -5,7 +5,7 @@ Site WordPress com um plugin unificado e um tema próprio. Cadastro e importaç�
 ## Instalar
 
 1. Faça backup do WordPress e do banco antes de migrar os plugins anteriores.
-2. Baixe [k8-produtos-2.6.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.6.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
+2. Baixe [k8-produtos-2.6.1.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.6.1.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
 3. Baixe [bmt-educacional-1.0.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/bmt-educacional-1.0.0.zip), instale em **Aparência → Temas → Adicionar tema → Enviar tema** e ative **BMT Educacional**.
 4. Abra **K8 Produtos → Alunos**. A base anterior `lista_alunos_v4` e os vínculos de `sba_guardians` são reaproveitados. Importe o CSV quando precisar atualizar o cadastro.
 5. Em **K8 Produtos → Produtos e preços**, abra ou crie um produto, selecione suas turmas e cadastre categoria, descrição, imagem opcional e preço normal do produto. Marque **Exibir este produto na home e no catálogo**.
@@ -20,6 +20,8 @@ Não instale o ZIP do repositório inteiro como plugin ou tema: os dois pacotes 
 Plugin e tema usam o sistema de atualização do WordPress, com os manifestos `updates/plugin.json` e `updates/theme.json` deste repositório público. As atualizações aparecem em **Painel → Atualizações**; no plugin também há um botão **Verificar atualizações** em Configurações.
 
 A atualização automática pode ser ligada ou desligada pelo administrador na tela de plugins ou temas. O código não muda essa preferência. Cada pacote é conferido por SHA-256 antes de ser instalado. O repositório não exige token no WordPress enquanto permanecer público.
+
+O workflow `wordpress-packages.yml` confere JavaScript e sintaxe PHP, executa os testes de abertura do checkout e usa `scripts/build.py` para publicar os ZIPs e os manifestos na própria branch. Ele roda em `main` e nas branches de preparação `codex/release-*`, com o token temporário do GitHub limitado à escrita do repositório. A geração é interrompida se uma verificação falhar. O passo a passo manual continua disponível:
 
 Para publicar uma próxima versão:
 
@@ -55,6 +57,8 @@ Nas tabelas **Preço por data deste produto** e **Parcelamento por data deste pr
 Excluir uma faixa ativa faz as novas compras usarem as condições que restarem, incluindo preço normal e parcelamento padrão. A compra aberta exige nova confirmação quando a condição mudou. Pedidos já emitidos conservam os valores, nomes e limites registrados, mesmo depois de a faixa ser excluída.
 
 ### Formas de pagamento e parcelamento por data
+
+O pagamento na K8 abre em **outra janela**, mantendo a loja aberta para acompanhar o pedido. Se a abertura for bloqueada ou a janela for fechada, use **Continuar pagamento na K8**. Ao voltar à loja, a situação é consultada novamente; também é possível usar **Atualizar situação**. O navegador pode abrir uma aba separada, especialmente no celular. Cortesias são confirmadas na própria loja.
 
 No cadastro do produto, marque **Pix**, **Boleto** e/ou **Cartão de crédito** e escolha o limite de parcelas fora dos períodos especiais. Depois de salvar, use **Parcelamento por data deste produto** para definir faixas de 1 a 12 parcelas com início e término. Exemplo: padrão de 6x e faixa de 10x até 30/11. Os períodos ativos do mesmo produto não podem se sobrepor; o último dia é incluído por inteiro no fuso do site.
 

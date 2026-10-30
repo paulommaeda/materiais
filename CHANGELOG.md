@@ -1,5 +1,14 @@
 # Alterações
 
+## Plugin 2.6.1
+
+- Checkout K8 abre em outra janela, mantendo a loja e o acompanhamento do pedido abertos.
+- A janela é preparada no clique antes da requisição; se o navegador bloquear ou o comprador fechar a janela, o botão Continuar pagamento na K8 permite abrir o checkout separado.
+- Cortesias não abrem janela. Falhas de cobrança e pedidos sem checkout fecham a janela de espera.
+- Links de continuação abrem com proteção de opener e informam a abertura em nova janela à tecnologia assistiva.
+- Retornar à loja atualiza a situação do pedido, sem emitir outro pagamento. Cliques repetidos durante o envio são ignorados.
+- Acrescenta testes JavaScript do fluxo com janelas e RPC simulados e geração dos pacotes pelo GitHub Actions após verificação. Checkout transparente não foi implementado.
+
 ## Plugin 2.6.0
 
 - Campo Situação do produto com desativação total e ação rápida de desativar/reativar na lista administrativa.

@@ -1,4 +1,6 @@
-# Formas de pagamento e parcelas por data — versão 2.6.0
+# Formas de pagamento e parcelas por data — versão 2.6.1
+
+O pagamento na K8 abre em **outra janela**, mantendo a loja aberta para acompanhar o pedido. Se a abertura for bloqueada ou a janela for fechada, use **Continuar pagamento na K8**. Ao voltar à loja, a situação é consultada novamente; também é possível usar **Atualizar situação**. O navegador pode abrir uma aba separada, especialmente no celular. Cortesias são confirmadas na própria loja.
 
 ## Configurar o produto
 

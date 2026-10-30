@@ -9,3 +9,7 @@ A comunicação com a conta K8 precisa de homologação no ambiente do responsá
 A integração nova de cartão usa os campos documentados de links K8 e foi testada com criação, leitura, confirmação de pagamento, cancelamento e conciliação simulados. Homologue no sandbox da sua conta K8 antes de liberar o fluxo novo em produção.
 
 A versão 2.6.0 também valida ocultação pública total, exclusão física de faixas com preservação de pedidos anteriores e preço normal único por produto, com valores antigos por turma fora do cálculo.
+
+Na versão 2.6.1, 77 verificações JavaScript com DOM, janelas e RPC simulados cobrem abertura antes da requisição, Pix/boleto/cartão, bloqueio, fechamento pelo comprador, falhas, cortesia, retorno à loja e cliques repetidos. O código anterior reprova o teste de regressão. Não houve nova execução de WordPress nem de navegador real nesta versão; o ambiente local estava indisponível. O workflow do GitHub também executa os testes JavaScript em Node.js e a conferência de sintaxe PHP antes de gerar os pacotes. Os resultados da versão 2.6.0 acima são históricos.
+
+Para executar: `node k8-produtos/tests/payment-window.js` (Node.js 18+).

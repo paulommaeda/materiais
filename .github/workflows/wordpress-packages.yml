@@ -1,0 +1,58 @@
+name: Validar e publicar pacotes WordPress
+
+on:
+  push:
+    branches:
+      - main
+      - 'codex/release-*'
+    paths:
+      - 'k8-produtos/**'
+      - 'bmt-educacional/**'
+      - 'scripts/build.py'
+      - '.github/workflows/wordpress-packages.yml'
+
+permissions: {}
+
+concurrency:
+  group: wordpress-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  packages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Baixar fontes
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, fixado por commit
+        with:
+          ref: ${{ github.sha }}
+      - name: Conferir JavaScript e abertura do checkout
+        run: |
+          node --check k8-produtos/assets/app.js
+          node --check k8-produtos/assets/storefront.js
+          node k8-produtos/tests/payment-window.js
+      - name: Conferir sintaxe PHP
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          for folder in ('k8-produtos', 'bmt-educacional'):
+              for source in sorted(Path(folder).rglob('*.php')):
+                  subprocess.run(['php', '-l', str(source)], check=True)
+          PY
+      - name: Gerar e conferir ZIPs e manifestos
+        run: python3 scripts/build.py
+      - name: Publicar pacotes gerados
+        env:
+          RELEASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          git add dist/ updates/
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Publicar pacotes WordPress validados"
+          git push origin "HEAD:$RELEASE_BRANCH"
