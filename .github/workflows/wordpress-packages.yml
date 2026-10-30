@@ -37,7 +37,6 @@ jobs:
           --health-retries=10
     env:
       K8PROD_TESTING: '1'
-      K8PROD_WP_LOAD: ${{ runner.temp }}/wordpress/wp-load.php
     steps:
       - name: Baixar fontes
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, fixado por commit
@@ -61,6 +60,7 @@ jobs:
         run: python3 scripts/prepare-wordpress-tests.py "$RUNNER_TEMP/wordpress"
       - name: Validar núcleo, preços, turmas, pagamentos e e-mails
         run: |
+          export K8PROD_WP_LOAD="$RUNNER_TEMP/wordpress/wp-load.php"
           for fixture in integration discounts-integration product-classes-integration payment-terms-integration visibility-deletion-integration emails-integration; do
             export K8PROD_CI_DB="k8prod_${fixture//-/_}_test"
             php scripts/bootstrap-wordpress-tests.php
