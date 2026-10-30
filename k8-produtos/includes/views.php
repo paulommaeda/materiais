@@ -90,6 +90,13 @@ final class Views
             <div data-k8-checkout hidden>
                 <div data-k8-summary></div>
                 <form class="k8-form k8-inline" data-k8-coupon><label>Cupom de desconto<input name="cupom" maxlength="50" autocomplete="off" placeholder="Opcional"></label><button type="submit" class="k8-btn secondary">Aplicar cupom</button></form>
+                <fieldset class="k8-form k8-email-contact" data-k8-email hidden>
+                    <legend>E-mail da compra</legend>
+                    <label>Seu e-mail<input name="email_responsavel" type="email" autocomplete="email" maxlength="254" data-k8-email-input></label>
+                    <p class="k8-muted" data-k8-email-info></p>
+                    <label class="k8-check" data-k8-reminder-label hidden><input type="checkbox" name="lembrete_email" value="1" data-k8-reminder>Quero receber um lembrete por e-mail se não concluir esta compra.</label>
+                    <p class="k8-muted" data-k8-email-state role="status" aria-live="polite"></p>
+                </fieldset>
                 <p class="k8-price" data-k8-price></p>
                 <p class="k8-muted" data-k8-payment-terms hidden></p>
                 <div class="k8-methods"><button class="k8-btn" data-method="Pix" type="button" hidden>Pagar com Pix</button><button class="k8-btn secondary" data-method="Boleto" type="button" hidden>Boleto</button><button class="k8-btn secondary" data-method="Cartao" type="button" hidden>Cartão de crédito</button></div>
@@ -584,11 +591,64 @@ final class Views
         if ($id) {
             self::discounts_form($id);
             self::payment_periods_form($id);
+            self::emails_form($p);
             echo '<section class="k8-card"><h2>Publicar e administrar este produto</h2><p><a target="_blank" rel="noopener" href="' . esc_url(Storefront::url($id)) . '">Abrir página de compra deste produto ↗</a></p><p>Fluxo de compra: <code>[k8_produto id="' . $id . '"]</code></p><p>Painel iniciando neste produto: <code>[k8_dashboard produto="' . $id . '"]</code></p></section>';
         } else {
             echo '<section class="k8-card"><h2>Preço e parcelamento por data deste produto</h2><p>Salve o produto com suas turmas e formas de pagamento para cadastrar os preços promocionais e os períodos de parcelamento nesta mesma tela.</p></section>';
         }
         echo '</div></div></div>';
+    }
+
+
+    private static function emails_form(object $product): void
+    {
+        global $wpdb;
+        $id = (int) $product->id;
+        $config = Emails::settings($product);
+        echo '<section class="k8-card" id="emails-produto"><h2>E-mails deste produto</h2><p>Os envios usam o <strong>SMTP já configurado no WordPress</strong>. Ative cada tipo somente nos produtos em que deseja utilizá-lo. As opções começam desligadas; pedidos antigos não entram em disparos retroativos.</p>';
+        self::form('save_email_settings', $id);
+        echo '<label class="k8-check"><input type="checkbox" name="mail_confirmacao" value="1" ' . checked((int) $config['confirmacao'], 1, false) . '>Enviar confirmação após o pagamento confirmado</label>';
+        echo '<p class="k8-muted">Inclui cortesia. Ao ativar, o comprador precisa informar o e-mail antes de concluir um novo pedido. Pedido apenas gerado ou em conferência ainda não recebe confirmação.</p>';
+        echo '<label class="k8-check"><input type="checkbox" name="mail_carrinho" value="1" ' . checked((int) $config['carrinho'], 1, false) . '>Enviar lembrete de carrinho abandonado</label>';
+        self::field('mail_espera', 'Minutos sem atividade antes do lembrete', $config['espera'], 'number', 'min="15" max="10080" required');
+        echo '<p class="k8-muted">Um lembrete por aluno, responsável e produto, somente quando o comprador informar um e-mail válido e escolher receber lembrete. Vale para compras interrompidas antes do pedido e para pagamentos pendentes. Pagos, cancelados, produtos desativados e preferências canceladas são conferidos antes de enviar. Carrinhos expiram após 30 dias sem atividade.</p>';
+        foreach (['confirmacao' => 'Confirmação de compra', 'carrinho' => 'Carrinho abandonado'] as $type => $label) {
+            echo '<h3>' . esc_html($label) . '</h3>';
+            self::field('mail_assunto_' . $type, 'Assunto', $config['assunto_' . $type], 'text', 'required maxlength="200"');
+            echo '<p>Texto da mensagem</p>';
+            wp_editor($config['texto_' . $type], 'k8_mail_' . $type, [
+                'textarea_name' => 'mail_texto_' . $type, 'textarea_rows' => 8, 'media_buttons' => false, 'teeny' => true,
+            ]);
+        }
+        echo '<details><summary>Marcadores de personalização disponíveis</summary><p>Copie o marcador com os colchetes para o assunto ou texto. Os links também podem ser usados como endereço de um botão ou link no editor. São substituições do e-mail; outros shortcodes do WordPress não são executados.</p>';
+        self::table_start(['Marcador', 'Conteúdo']);
+        foreach (Emails::markers() as $key => $label) echo '<tr><td><code>[' . esc_html($key) . ']</code></td><td>' . esc_html($label) . '</td></tr>';
+        self::table_end();
+        echo '</details><p class="k8-muted">O lembrete inclui um link para cancelar novos lembretes, mesmo que o texto seja personalizado. O preço de um carrinho sem pedido é recalculado; pedidos emitidos mantêm o valor registrado.</p>';
+        self::button('Salvar e-mails deste produto');
+        echo '</form><h3>Histórico de envios deste produto</h3>';
+        $worker = get_option('k8prod_mail_worker_state');
+        if (is_array($worker) && !empty($worker['data'])) {
+            echo '<p class="k8-muted">Última execução da fila do site: ' . esc_html(get_date_from_gmt($worker['data'], 'd/m/Y H:i')) . (!empty($worker['erro']) ? ' · ' . esc_html($worker['erro']) : '') . '.</p>';
+        }
+        echo '<p class="k8-muted">A fila é verificada a cada cinco minutos pelo WP-Cron; o horário depende da execução do agendador do site. “Enviado” significa aceito pelo WordPress/SMTP. Consulte os registros do SMTP para confirmar a entrega na caixa de entrada.</p>';
+        $rows = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . Support::table('emails') . ' WHERE produto_id = %d ORDER BY id DESC LIMIT 30', $id));
+        $labels = ['fila' => 'Na fila', 'enviando' => 'Enviando', 'enviado' => 'Enviado', 'falha' => 'Falha após três tentativas', 'conferir' => 'Conferir no SMTP', 'cancelado' => 'Cancelado'];
+        self::table_start(['Tipo', 'Destinatário', 'Pedido', 'Situação', 'Tentativas', 'Data', 'Ações']);
+        foreach ($rows as $row) {
+            echo '<tr><td>' . ($row->tipo === 'confirmacao' ? 'Confirmação' : 'Carrinho') . '</td><td>' . esc_html($row->email) . '</td><td>' . ($row->pedido_id ? '#' . (int) $row->pedido_id : 'Sem pedido') . '</td><td>' . esc_html($labels[$row->estado] ?? $row->estado);
+            if ($row->erro) echo '<br><span class="k8-muted">' . esc_html($row->erro) . '</span>';
+            echo '</td><td>' . (int) $row->tentativas . '</td><td>' . esc_html(get_date_from_gmt($row->enviado_em ?: $row->criado_em, 'd/m/Y H:i')) . '</td><td>';
+            if (in_array($row->estado, ['falha', 'conferir'], true)) {
+                self::form('retry_email', $id, '', 'Confira o log do SMTP antes de repetir: um envio interrompido pode já ter sido aceito. Deseja colocar este e-mail na fila novamente?');
+                echo '<input type="hidden" name="id" value="' . (int) $row->id . '">';
+                self::button('Tentar novamente');
+                echo '</form>';
+            }
+            echo '</td></tr>';
+        }
+        self::table_end();
+        echo '</section>';
     }
 
     private static function classes_form(object $product): void

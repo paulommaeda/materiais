@@ -2,7 +2,7 @@
 /**
  * Plugin Name: K8 Produtos, Alunos, Cobranças e Entregas
  * Description: Produtos com shortcode próprio, cobrança K8, cupons, estoque e entrega com assinatura.
- * Version: 2.6.1
+ * Version: 2.7.0
  * Plugin URI: https://github.com/paulommaeda/materiais
  * Update URI: https://github.com/paulommaeda/materiais/k8-produtos
  * Author: Paulo Maeda
@@ -16,11 +16,11 @@ namespace K8Produtos;
 
 defined('ABSPATH') || exit;
 
-define('K8PROD_VERSION', '2.6.1');
+define('K8PROD_VERSION', '2.7.0');
 define('K8PROD_FILE', __FILE__);
 define('K8PROD_DIR', __DIR__ . '/');
 
-foreach (['support', 'student-import', 'student-api', 'product-classes', 'schema', 'client', 'students', 'discounts', 'payment-terms', 'card-payments', 'service', 'http', 'views', 'storefront', 'updates'] as $module) {
+foreach (['support', 'student-import', 'student-api', 'product-classes', 'schema', 'client', 'students', 'discounts', 'payment-terms', 'card-payments', 'service', 'emails', 'http', 'views', 'storefront', 'updates'] as $module) {
     require_once K8PROD_DIR . 'includes/' . $module . '.php';
 }
 
@@ -28,6 +28,7 @@ register_activation_hook(__FILE__, [Schema::class, 'activate']);
 Updates::register();
 register_deactivation_hook(__FILE__, static function () {
     wp_clear_scheduled_hook('k8prod_sync');
+    wp_clear_scheduled_hook('k8prod_emails');
 });
 add_filter('cron_schedules', static function ($schedules) {
     $schedules['k8prod_five_minutes'] = ['interval' => 300, 'display' => 'K8: a cada cinco minutos'];
@@ -54,6 +55,7 @@ add_action('plugins_loaded', static function () {
     if (!wp_next_scheduled('k8prod_sync')) {
         wp_schedule_event(time() + 300, 'k8prod_five_minutes', 'k8prod_sync');
     }
+    Emails::register();
     StudentImport::register();
     StudentApi::register();
     Storefront::register();

@@ -1,6 +1,6 @@
 'use strict';
 
-// Executar com Node.js 18+: node k8-produtos/tests/payment-window.js
+// Node.js 18+: node k8-produtos/tests/payment-window.js
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -62,6 +62,16 @@ async function runPaymentWindowTests(source, executeScript) {
     doc.querySelectorAll = selector => selector === '[data-k8-product]' ? [root] : [];
     const win = new Element('window');
     const env = {root, elements, notice, buttons, doc, win, windows: [], trace: [], currentOrder: null, available: true};
+    if (options.email) {
+      env.emailBox = new Element('fieldset'); env.emailInput = new Element('input'); env.reminder = new Element('input');
+      env.emailInput.value = ''; env.emailInput.required = false; env.reminder.checked = false;
+      env.emailInput.checkValidity = () => !env.emailInput.value ? !env.emailInput.required : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.emailInput.value);
+      env.emailInput.reportValidity = () => { env.validityReported = true; return env.emailInput.checkValidity(); };
+      for (const [selector, element] of Object.entries({
+        '[data-k8-email]': env.emailBox, '[data-k8-email-input]': env.emailInput, '[data-k8-reminder]': env.reminder,
+        '[data-k8-reminder-label]': new Element('label'), '[data-k8-email-state]': new Element('p'), '[data-k8-email-info]': new Element('p')
+      })) root.selectors[selector] = element;
+    }
     win.location = {href: 'https://loja.example/produto', assign() { throw new Error('A loja não deve navegar para a K8.'); }, reload() {}};
     const location = {pathname: '/produto', origin: 'https://loja.example', search: ''};
     let release;
@@ -91,12 +101,19 @@ async function runPaymentWindowTests(source, executeScript) {
       if (op === 'bootstrap') data = {nonce: 'nonce-teste'};
       else if (op === 'availability') data = {available: env.available};
       else if (op === 'status') data = {order: env.currentOrder};
+      else if (op === 'save_cart') {
+        env.savedContact = {email: request.body.get('email_responsavel'), reminder: request.body.get('lembrete_email'), token: request.body.get('token')};
+        data = {saved: true};
+      }
       else if (op === 'quote') data = {
         chave_preco: 'cotacao-teste', original: 100, valor: options.free ? 0 : 90, cupom: '',
-        formas_pagamento: ['Pix', 'Boleto', 'Cartao'], parcelas_cartao_max: 6, refresh_after: 300
+        formas_pagamento: ['Pix', 'Boleto', 'Cartao'], parcelas_cartao_max: 6, refresh_after: 300,
+        email_checkout: options.email ? {ativo: options.emailActive !== false, obrigatorio: options.emailRequired !== false,
+          lembrete_disponivel: true, email: options.prefill || '', lembrete: Boolean(options.reminder)} : undefined
       };
       else if (op === 'checkout') {
         env.checkoutMethod = request.body.get('metodo');
+        env.checkoutContact = {email: request.body.get('email_responsavel'), reminder: request.body.get('lembrete_email')};
         await gate;
         if (options.closedByUser) env.windows[0].closed = true;
         if (options.checkoutError) return {ok: false, json: async () => ({success: false, data: {message: 'Confira as condições atuais.'}})};
@@ -181,6 +198,53 @@ async function runPaymentWindowTests(source, executeScript) {
     await env.win.dispatch('focus');
     check(env.trace.filter(item => item === 'status').length === after, 'Produto removido não deve consultar pedido ao receber foco.');
   }
+
+  {
+    const env = await fixture({email: true});
+    check(!env.emailBox.hidden && env.emailInput.required, 'Confirmação habilitada deve mostrar e exigir e-mail.');
+    await env.pay('Pix');
+    check(env.validityReported && !env.windows.length && !env.trace.includes('checkout'), 'E-mail obrigatório vazio deve bloquear antes da janela e da cobrança.');
+    env.emailInput.value = 'endereco-invalido';
+    await env.pay('Cartao');
+    check(!env.windows.length && !env.trace.includes('checkout'), 'E-mail inválido não deve abrir a K8.');
+    env.emailInput.value = 'responsavel@example.invalid';
+    await env.emailInput.dispatch('change');
+    check(env.savedContact.email === env.emailInput.value && env.savedContact.reminder === '0', 'Contato deve salvar antes de emitir pedido, sem autorizar lembrete automaticamente.');
+    env.reminder.checked = true;
+    await env.reminder.dispatch('change');
+    check(env.savedContact.reminder === '1' && env.savedContact.token === 'contexto-teste', 'Preferência de lembrete deve salvar com o contexto do aluno.');
+    await env.pay('Pix');
+    check(env.checkoutContact.email === env.emailInput.value && env.checkoutContact.reminder === '1', 'Checkout deve enviar o e-mail e a preferência ao servidor.');
+    check(env.windows[0].url === env.currentOrder.redirect, 'Pagamento com e-mail deve continuar abrindo em outra janela.');
+  }
+  {
+    const env = await fixture({email: true, emailRequired: false});
+    check(!env.emailInput.required && !env.reminder.checked, 'Somente lembrete não deve exigir e-mail nem pré-marcar a preferência.');
+    env.reminder.checked = true;
+    await env.reminder.dispatch('change');
+    check(env.emailInput.required, 'Optar pelo lembrete deve exigir e-mail.');
+    env.reminder.checked = false;
+    await env.reminder.dispatch('change');
+    check(!env.emailInput.required, 'Desmarcar lembrete deve restaurar e-mail opcional.');
+    await env.pay('Boleto');
+    check(env.checkoutContact.email === '' && env.checkoutContact.reminder === '0' && env.windows.length === 1, 'Sem confirmação e sem lembrete é possível comprar sem e-mail.');
+  }
+  {
+    const env = await fixture({email: true, prefill: 'salvo@example.invalid', reminder: true});
+    check(env.emailInput.value === 'salvo@example.invalid' && env.reminder.checked, 'Nova consulta deve recuperar o contato e a preferência já salvos.');
+    env.emailInput.value = 'novo@example.invalid'; env.reminder.checked = false;
+    env.elements.coupon.fields = {cupom: ''};
+    await env.elements.coupon.dispatch('submit');
+    await settle();
+    check(env.emailInput.value === 'novo@example.invalid' && !env.reminder.checked, 'Atualizar cotação não deve sobrescrever o contato que a pessoa está editando.');
+    check(env.savedContact.email === 'novo@example.invalid', 'Aplicar cupom deve salvar o contato atual sem restaurar o endereço antigo.');
+  }
+  {
+    const env = await fixture({email: true, emailActive: false});
+    check(env.emailBox.hidden, 'Produtos sem envio devem manter o campo oculto.');
+    await env.pay('Cartao');
+    check(env.checkoutContact.email === null && env.windows.length === 1, 'Envio desligado deve preservar a compra anterior, sem campo de e-mail.');
+  }
   return checks;
 }
 
@@ -188,7 +252,7 @@ runPaymentWindowTests(
   fs.readFileSync(path.join(__dirname, '../assets/app.js'), 'utf8'),
   (source, context) => vm.runInNewContext(source, context, {filename: 'app.js', timeout: 2000})
 ).then(checks => {
-  console.log(`${checks} verificações de abertura do pagamento aprovadas.`);
+  console.log(`${checks} verificações de abertura do pagamento e contato aprovadas.`);
 }).catch(error => {
   console.error(error);
   process.exitCode = 1;

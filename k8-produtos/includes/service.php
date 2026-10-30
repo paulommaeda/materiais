@@ -85,6 +85,7 @@ final class Service
             'promocao_ate' => $promotion ? Discounts::date_label($promotion->fim) : null,
             'cupom' => $coupon_applied ? $coupon->codigo : '', 'percentual' => $coupon_applied ? (float) $coupon->percentual : 0,
             'aviso_cupom' => $warning, 'parcelamento_ate' => $terms['parcelamento_fim'] ? Discounts::date_label($terms['parcelamento_fim']) : null,
+            'email_checkout' => Emails::checkout_options($product, $person),
             'refresh_after' => min(Discounts::refresh_after([(int) $product->id]), PaymentTerms::refresh_after([(int) $product->id]))];
         $quote['chave_preco'] = hash('sha256', wp_json_encode([$product->id, $person['turma'], $base, $value,
             $quote['valor_apos_data'], $quote['promocao_id'], $quote['promocao_fim'], $quote['cupom'], $quote['percentual'],
@@ -102,9 +103,9 @@ final class Service
         }
     }
 
-    public static function checkout(object $product, array $person, string $method, string $code, ?string $price_key = null): array
+    public static function checkout(object $product, array $person, string $method, string $code, ?string $price_key = null, array $contact = []): array
     {
-        return Support::lock('checkout:' . $product->id . ':' . $person['ra'], static function () use ($product, $person, $method, $code, $price_key) {
+        return Support::lock('checkout:' . $product->id . ':' . $person['ra'], static function () use ($product, $person, $method, $code, $price_key, $contact) {
             $product = Support::product((int) $product->id, true);
             global $wpdb;
             $orders = Support::table('pedidos');
@@ -125,8 +126,9 @@ final class Service
             if (($quote['valor'] <= 0) !== ($method === 'Cortesia')) {
                 throw new \InvalidArgumentException('Confira o valor e escolha a opção de pagamento correspondente.');
             }
+            $email_fields = Emails::contact($product, $person, $contact, $code, true);
             $client = $quote['valor'] > 0 ? new Client() : null;
-            $id = Support::transaction(static function () use ($wpdb, $product, $person, $quote, $method, $orders) {
+            $id = Support::transaction(static function () use ($wpdb, $product, $person, $quote, $method, $orders, $email_fields) {
                 if ($quote['cupom']) {
                     $coupons = Support::table('cupons');
                     $affected = Support::must($wpdb->query($wpdb->prepare("UPDATE $coupons SET usado_count = usado_count + 1
@@ -138,7 +140,7 @@ final class Service
                         throw new \InvalidArgumentException('O cupom não está mais disponível. Refaça a consulta.');
                     }
                 }
-                Support::must($wpdb->insert($orders, array_merge($person, [
+                Support::must($wpdb->insert($orders, array_merge($person, $email_fields, [
                     'produto_id' => $product->id, 'active_key' => hash('sha256', $product->id . ':' . $person['ra']),
                     'valor' => $quote['valor'], 'valor_original' => $quote['original'], 'cupom_codigo' => $quote['cupom'] ?: null,
                     'promocao_id' => $quote['promocao_id'], 'promocao_titulo' => $quote['promocao_titulo'],
@@ -153,7 +155,9 @@ final class Service
                     'metodo' => $method, 'status' => $quote['valor'] <= 0 ? 'gerado' : 'iniciado',
                     'status_pagamento' => $quote['valor'] <= 0 ? 'Paga' : null, 'criado_em' => current_time('mysql'),
                 ])));
-                return (int) $wpdb->insert_id;
+                $order_id = (int) $wpdb->insert_id;
+                Emails::attach((int) $email_fields['email_carrinho_id'], $order_id);
+                return $order_id;
             });
             if ($quote['valor'] <= 0) {
                 return self::public_order(self::order((int) $product->id, $id));

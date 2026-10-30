@@ -82,12 +82,17 @@ final class Http
                 wp_send_json_success(['students' => $students]);
             }
             $person = Students::context($id, Support::text($data, 'token'));
+            if ($op === 'save_cart') {
+                self::rate('cart:' . $id . ':' . $person['ra'], 40, 10 * MINUTE_IN_SECONDS);
+                Emails::contact($product, $person, $data, Support::text($data, 'cupom'));
+                wp_send_json_success(['saved' => true]);
+            }
             if ($op === 'quote') {
                 wp_send_json_success(Service::quote($product, $person, Support::text($data, 'cupom')));
             }
             if ($op === 'checkout') {
                 self::rate('checkout:' . $id . ':' . $person['ra'], 8, 10 * MINUTE_IN_SECONDS);
-                wp_send_json_success(Service::checkout($product, $person, Support::text($data, 'metodo'), Support::text($data, 'cupom'), Support::text($data, 'chave_preco')));
+                wp_send_json_success(Service::checkout($product, $person, Support::text($data, 'metodo'), Support::text($data, 'cupom'), Support::text($data, 'chave_preco'), $data));
             }
             if ($op === 'status') {
                 $order = Service::active($id, $person['ra']);
@@ -116,7 +121,7 @@ final class Http
             $data = wp_unslash($_POST);
             $op = Support::text($data, 'op');
             $id = absint($data['produto_id'] ?? 0);
-            if (in_array($op, ['save_product', 'set_product_status', 'settings'], true)) {
+            if (in_array($op, ['save_product', 'set_product_status', 'save_email_settings', 'settings'], true)) {
                 if (!current_user_can('manage_options')) {
                     throw new \RuntimeException('Somente administradores podem alterar esta configuração.');
                 }
@@ -144,6 +149,14 @@ final class Http
             Support::must($wpdb->update(Support::table('produtos'), ['ativo' => (int) $active], ['id' => $id]));
             do_action('k8prod_product_visibility_changed', $id, (bool) $active);
             return ['message' => (int) $active ? 'Produto reativado.' : 'Produto desativado e ocultado do site.'];
+        }
+        if ($op === 'save_email_settings') {
+            Emails::save($id, $data);
+            return ['message' => 'E-mails deste produto configurados.', 'redirect' => admin_url('admin.php?page=k8prod-products&produto_id=' . $id . '#emails-produto')];
+        }
+        if ($op === 'retry_email') {
+            Emails::retry($id, absint($data['id'] ?? 0));
+            return ['message' => 'E-mail colocado na fila para nova tentativa.', 'redirect' => admin_url('admin.php?page=k8prod-products&produto_id=' . $id . '#emails-produto')];
         }
         if ($op === 'save_product') {
             $name = Support::text($data, 'nome');

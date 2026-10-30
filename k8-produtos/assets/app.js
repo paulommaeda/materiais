@@ -72,6 +72,7 @@
 
   document.querySelectorAll('.k8prod[data-nonce]').forEach(root => {
     async function send(form) {
+      window.tinymce?.triggerSave();
       const payload = new FormData(form);
       payload.set('action', 'k8prod_manage');
       payload.set('op', form.dataset.k8Manage);
@@ -191,8 +192,39 @@
     const checkout = root.querySelector('[data-k8-checkout]');
     const statusBox = root.querySelector('[data-k8-status]');
     const list = root.querySelector('[data-k8-students]');
-    const state = {nonce: '', token: '', coupon: '', student: null, priceKey: ''};
-    let priceTimer, refreshingOrder = false;
+    const state = {nonce: '', token: '', coupon: '', student: null, priceKey: '', emailLoaded: false};
+    let priceTimer, contactTimer, refreshingOrder = false;
+    const emailBox = root.querySelector('[data-k8-email]');
+    const emailInput = root.querySelector('[data-k8-email-input]');
+    const reminderInput = root.querySelector('[data-k8-reminder]');
+    let contactQueue = Promise.resolve();
+    function contactFields() {
+      return emailBox && !emailBox.hidden ? {email_responsavel: emailInput.value.trim(), lembrete_email: reminderInput.checked ? '1' : '0'} : {};
+    }
+    function saveContact() {
+      if (!emailBox || emailBox.hidden || !state.token || !root.isConnected || (emailInput.value && !emailInput.checkValidity())) return Promise.resolve();
+      const token = state.token;
+      const fields = {...contactFields(), token, cupom: state.coupon};
+      const box = root.querySelector('[data-k8-email-state]');
+      contactQueue = contactQueue.catch(() => {}).then(async () => {
+        try {
+          await request('save_cart', fields);
+          if (state.token === token && box) box.textContent = fields.email_responsavel ? 'E-mail salvo para esta compra.' : '';
+        } catch (error) {
+          if (state.token === token && box) box.textContent = error.message;
+        }
+      });
+      return contactQueue;
+    }
+    emailInput?.addEventListener('input', () => {
+      clearTimeout(contactTimer);
+      contactTimer = setTimeout(saveContact, 800);
+    });
+    emailInput?.addEventListener('change', saveContact);
+    reminderInput?.addEventListener('change', () => {
+      emailInput.required = emailBox.dataset.required === '1' || reminderInput.checked;
+      return saveContact();
+    });
     function saveSession() {
       try { sessionStorage.setItem(storageKey, JSON.stringify({token: state.token, student: state.student})); } catch (_) { /* Navegação privada. */ }
     }
@@ -201,6 +233,7 @@
     }
     function hideProduct() {
       clearTimeout(priceTimer);
+      clearTimeout(contactTimer);
       forgetSession();
       root.remove();
     }
@@ -215,6 +248,20 @@
     }
     function showPrice(quote) {
       state.priceKey = quote.chave_preco;
+      if (emailBox) {
+        const config = quote.email_checkout || {};
+        emailBox.hidden = !config.ativo;
+        emailBox.dataset.required = config.obrigatorio ? '1' : '0';
+        root.querySelector('[data-k8-reminder-label]').hidden = !config.lembrete_disponivel;
+        root.querySelector('[data-k8-email-info]').textContent = config.obrigatorio ? 'Enviaremos a confirmação para este e-mail quando o pagamento for confirmado.' : 'Informe seu e-mail caso queira receber o lembrete desta compra.';
+        if (!state.emailLoaded) {
+          emailInput.value = config.email || '';
+          reminderInput.checked = Boolean(config.lembrete);
+          state.emailLoaded = true;
+        }
+        if (!config.lembrete_disponivel) reminderInput.checked = false;
+        emailInput.required = Boolean(config.obrigatorio || reminderInput.checked);
+      }
       const price = root.querySelector('[data-k8-price]');
       price.replaceChildren();
       if (quote.original > quote.valor) price.append(node('del', money(quote.original), 'k8-original-price'));
@@ -321,6 +368,10 @@
       state.student = {nome_aluno: student.nome_aluno, turma: student.turma, responsavel: student.responsavel};
       state.token = student.token;
       state.coupon = '';
+      state.emailLoaded = false;
+      clearTimeout(contactTimer);
+      if (emailInput) emailInput.value = '';
+      if (reminderInput) reminderInput.checked = false;
       saveSession();
       const summary = root.querySelector('[data-k8-summary]');
       summary.replaceChildren(node('h3', student.nome_aluno), node('p', `Turma: ${student.turma} · Responsável: ${student.responsavel}`));
@@ -377,6 +428,7 @@
         const quote = await request('quote', {cupom: new FormData(form).get('cupom')});
         state.coupon = quote.cupom;
         showPrice(quote);
+        saveContact();
         notice(root, quote.aviso_cupom || (quote.cupom ? 'Cupom aplicado.' : 'Preço atualizado.'), true);
       } catch (error) {
         state.coupon = '';
@@ -386,11 +438,13 @@
     });
     root.querySelectorAll('[data-method]').forEach(button => button.addEventListener('click', async () => {
       if (checkout.getAttribute('aria-busy') === 'true') return;
+      if (emailBox && !emailBox.hidden && (emailInput.required || emailInput.value) && !emailInput.reportValidity()) return;
+      clearTimeout(contactTimer);
       const paymentWindow = button.dataset.method === 'Cortesia' ? null : preparePaymentWindow();
       busy(checkout, true);
       notice(root, 'Registrando pedido. Aguarde…', true);
       try {
-        const order = await request('checkout', {metodo: button.dataset.method, cupom: state.coupon, chave_preco: state.priceKey});
+        const order = await request('checkout', {metodo: button.dataset.method, cupom: state.coupon, chave_preco: state.priceKey, ...contactFields()});
         notice(root, '');
         renderOrder(order);
         if (order.redirect) {

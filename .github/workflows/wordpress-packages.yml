@@ -8,7 +8,7 @@ on:
     paths:
       - 'k8-produtos/**'
       - 'bmt-educacional/**'
-      - 'scripts/build.py'
+      - 'scripts/**'
       - '.github/workflows/wordpress-packages.yml'
 
 permissions: {}
@@ -23,6 +23,21 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: k8-test-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      K8PROD_TESTING: '1'
+      K8PROD_WP_LOAD: ${{ runner.temp }}/wordpress/wp-load.php
     steps:
       - name: Baixar fontes
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, fixado por commit
@@ -42,6 +57,15 @@ jobs:
               for source in sorted(Path(folder).rglob('*.php')):
                   subprocess.run(['php', '-l', str(source)], check=True)
           PY
+      - name: Preparar WordPress descartável
+        run: python3 scripts/prepare-wordpress-tests.py "$RUNNER_TEMP/wordpress"
+      - name: Validar núcleo, preços, turmas, pagamentos e e-mails
+        run: |
+          for fixture in integration discounts-integration product-classes-integration payment-terms-integration visibility-deletion-integration emails-integration; do
+            export K8PROD_CI_DB="k8prod_${fixture//-/_}_test"
+            php scripts/bootstrap-wordpress-tests.php
+            php "k8-produtos/tests/$fixture.php"
+          done
       - name: Gerar e conferir ZIPs e manifestos
         run: python3 scripts/build.py
       - name: Publicar pacotes gerados
