@@ -265,7 +265,7 @@ final class Emails
     {
         if (!in_array($type, ['confirmacao', 'carrinho'], true)) throw new \InvalidArgumentException('Tipo de e-mail inválido.');
         $config = self::settings($product);
-        $is_order = isset($source->status_pagamento);
+        $is_order = property_exists($source, 'status_pagamento');
         $url = Storefront::url((int) $product->id);
         $payment = $is_order ? (Service::public_order($source)['redirect'] ?: $url) : $url;
         if (!$is_order) {
@@ -362,7 +362,7 @@ final class Emails
                 if ($eligible) {
                     $active = Service::active((int) $product->id, $cart->ra);
                     $source = $active ?: ($cart->pedido_id ? Service::order((int) $product->id, (int) $cart->pedido_id) : $cart);
-                    if (isset($source->status_pagamento)) {
+                    if (property_exists($source, 'status_pagamento')) {
                         if ($source->cobranca_id || $source->link_pagamento_id) $source = Service::sync_order((int) $product->id, (int) $source->id);
                         if (in_array($source->status, ['iniciado', 'verificacao'], true)) {
                             throw new \RuntimeException('O pedido aguarda conferência do pagamento na K8.');

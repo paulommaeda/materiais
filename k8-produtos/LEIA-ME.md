@@ -1,4 +1,4 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.6.1
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.7.0
 
 Plugin único criado a partir dos cinco arquivos de Paulo Maeda. Reúne cadastro de produtos, página pública de compra, cobrança K8, cupons, estoque, entregas com assinatura e painel por produto. Não exige WooCommerce.
 
@@ -79,6 +79,18 @@ Use **Situação do produto → Desativado — ocultar totalmente do site** no c
 Nas tabelas de preço e parcelamento por data, **Excluir faixa** remove a faixa após confirmação. Pausar com ativar/desativar continua disponível. Os pedidos anteriores conservam valores, nomes das campanhas e limites de parcelas registrados; novas compras consideram as faixas restantes e os padrões do produto.
 
 Preço específico por turma não é mais cadastrado nem aplicado. Confira o **Preço normal deste produto** ao atualizar, especialmente se antes só existiam valores por turma. O produto sem preço normal não aparece no catálogo até a configuração. Limpe o cache da home/CDN após atualizar ou mudar a visibilidade, se a hospedagem usar cache externo.
+
+## E-mails por produto
+
+Em **Produtos e preços**, edite o produto e abra **E-mails deste produto**. Ative a confirmação após pagamento e/ou o lembrete de carrinho abandonado, escolha a espera e personalize os assuntos e mensagens no editor. As configurações são independentes por produto e começam desligadas.
+
+Use os marcadores listados na tela, como `[nome_responsavel]`, `[nome_aluno]`, `[produto]`, `[valor]`, `[numero_pedido]` e `[link_pagamento]`. O rodapé do lembrete inclui a opção de cancelamento.
+
+O checkout coleta o e-mail do comprador, pois a base atual de alunos não tem esse campo. Com confirmação habilitada, o e-mail é obrigatório em novas compras. O lembrete depende da escolha de recebê-lo. Um contato válido é registrado mesmo antes de gerar pedido, e cada combinação de produto/aluno/responsável recebe no máximo um lembrete. Não é possível recuperar compras anônimas sem e-mail informado.
+
+O envio utiliza `wp_mail()` e o SMTP já configurado no WordPress. A fila é verificada a cada cinco minutos pelo WP-Cron; o prazo de abandono padrão é de 60 minutos, ajustável por produto. O histórico apresenta envios, falhas e opções de nova tentativa. Até três recusas do transporte são tratadas automaticamente. Em resultado incerto, consulte o SMTP antes de repetir.
+
+A confirmação só é enviada para pedido pago, inclusive cortesia. Antes de recuperar um pagamento pendente, a situação é conferida na K8. Pagos, cancelados, produtos desativados, vínculos/turmas indisponíveis e preferências canceladas não recebem recuperação. Pedidos antigos não entram em disparos retroativos. Consulte o [guia completo de e-mails](https://github.com/paulommaeda/materiais/blob/main/docs/EMAILS-POR-PRODUTO.md).
 
 ## Formas de pagamento e parcelas por data
 

@@ -5,7 +5,7 @@ Site WordPress com um plugin unificado e um tema próprio. Cadastro e importaç�
 ## Instalar
 
 1. Faça backup do WordPress e do banco antes de migrar os plugins anteriores.
-2. Baixe [k8-produtos-2.6.1.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.6.1.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
+2. Baixe [k8-produtos-2.7.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.7.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
 3. Baixe [bmt-educacional-1.0.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/bmt-educacional-1.0.0.zip), instale em **Aparência → Temas → Adicionar tema → Enviar tema** e ative **BMT Educacional**.
 4. Abra **K8 Produtos → Alunos**. A base anterior `lista_alunos_v4` e os vínculos de `sba_guardians` são reaproveitados. Importe o CSV quando precisar atualizar o cadastro.
 5. Em **K8 Produtos → Produtos e preços**, abra ou crie um produto, selecione suas turmas e cadastre categoria, descrição, imagem opcional e preço normal do produto. Marque **Exibir este produto na home e no catálogo**.
@@ -31,6 +31,12 @@ Para publicar uma próxima versão:
 4. No WordPress, use **Verificar atualizações**. A consulta normal usa cache de até uma hora e segue a agenda do próprio WordPress.
 
 Não basta editar arquivos PHP sem gerar os pacotes e aumentar a versão. Os sites só recebem uma atualização quando o manifesto anunciar uma versão maior. O canal depende de acesso HTTPS do servidor a `raw.githubusercontent.com`.
+
+## E-mails por produto
+
+Em **Produtos e preços → editar produto → E-mails deste produto**, ative a confirmação após pagamento e/ou o lembrete de carrinho abandonado. Personalize assunto e mensagem no editor, usando marcadores como `[nome_responsavel]`, `[nome_aluno]`, `[produto]`, `[valor]`, `[numero_pedido]` e `[link_pagamento]`. O envio usa o SMTP já configurado no WordPress, pelo `wp_mail()`.
+
+O checkout coleta o e-mail do comprador. A confirmação exige um endereço válido; a recuperação depende de a pessoa escolher receber lembrete. O prazo padrão é de 60 minutos, configurável no produto. A fila roda a cada cinco minutos pelo WP-Cron, com histórico, até três tentativas e repetição manual após falha. As opções começam desligadas e não geram disparos retroativos para pedidos antigos. [Guia dos e-mails](docs/EMAILS-POR-PRODUTO.md).
 
 ## Turmas e preços por produto
 

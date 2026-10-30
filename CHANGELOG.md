@@ -1,5 +1,17 @@
 # Alterações
 
+## Plugin 2.7.0
+
+- Confirmação de compra após pagamento confirmado, inclusive cortesia, com assunto e texto próprios por produto.
+- Recuperação de carrinhos antes do pedido e de pagamentos pendentes, com espera configurável, contato válido e preferência de lembrete.
+- Editor visual e 19 marcadores de personalização; links de pagamento, acompanhamento e cancelamento dos lembretes.
+- Coleta de e-mail no checkout quando habilitada. Validação acontece antes de criar o pedido ou chamar a K8; o endereço fica registrado no pedido.
+- Fila pelo WP-Cron e envio pelo wp_mail, aproveitando o SMTP existente sem alterar o remetente. Histórico por produto, até três tentativas e nova tentativa manual.
+- Conferência do pagamento na K8 antes da recuperação, respeito a produto/turma/vínculo ativos e descadastro. Produtos ocultos podem manter confirmações de compras já pagas.
+- Opções desligadas inicialmente, sem disparo retroativo. Identificador único de cada mensagem evita repetições normais; envios interrompidos ficam para conferência no SMTP.
+- Testes JavaScript do contato, integração real com WordPress/MariaDB e comunicação financeira/e-mails simulados no GitHub Actions.
+- Mantém o checkout K8 em outra janela. Não implementa checkout transparente.
+
 ## Plugin 2.6.1
 
 - Checkout K8 abre em outra janela, mantendo a loja e o acompanhamento do pedido abertos.
