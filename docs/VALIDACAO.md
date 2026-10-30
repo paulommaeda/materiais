@@ -1,4 +1,25 @@
-# Validação — versão 2.6.1 — 30/10/2026
+# Validação — versão 2.7.0 — 30/10/2026
+
+Ambiente descartável no GitHub Actions: WordPress 7.1.4, PHP 8.3.6 e MariaDB 10.11.19. Nenhum acesso ao WordPress de produção, à conta K8 ou ao SMTP do usuário.
+
+- **318 verificações de integração aprovadas:** 107 de e-mails, 50 do núcleo, 37 de descontos, 32 de turmas por produto, 55 de formas/parcelamento e 37 de ocultação/exclusão.
+- **97 verificações JavaScript aprovadas** em Node.js, com DOM, janelas e RPC simulados: inclui as 77 anteriores e os novos casos de contato, validação antes da abertura da janela, preferência de lembrete e preservação do contato durante atualização de preço/cupom.
+- Ativações, prazo e modelos independentes por produto; opções desligadas inicialmente, sem disparos retroativos.
+- Captura antes do pedido, e-mail obrigatório para confirmação, opção explícita de recuperação, contato apagado/corrigido e repetição sem duplicar carrinho.
+- Confirmação somente para pagamento confirmado, incluindo cortesia, Pix e cartão. Novo contato não altera endereço de pedido já emitido.
+- Recuperação antes do pedido ou com cobrança pendente; consulta à K8 impede lembrete para quem já pagou. Boleto cancelado, produto oculto, turma alterada, vínculo removido, carrinho expirado e cancelamento de preferência impedem o envio.
+- Falhas de consulta K8 e pagamentos em conferência adiam a mensagem sem consumir tentativa de SMTP.
+- HTML e assunto personalizados, marcadores substituídos, dados escapados e cabeçalhos preservando a configuração do remetente do WordPress.
+- Fila com identificador único, três recusas de transporte, contato corrigido, nova atividade adiando envio, nova tentativa manual, proteção entre produtos e interrupção com resultado incerto sem repetição automática.
+- Cron sem duplicação, renderização dos formulários reais, campo público de contato e rotas AJAX executadas em processos WordPress isolados: nonce, contexto, produto e permissões.
+- Conferência de sintaxe PHP/JavaScript, build com o script Python original e ZIP extraído para comparar inventário, CRC-32 e conteúdo das fontes. SHA-256 publicado no manifesto.
+- E-mails interceptados por pre_wp_mail e K8 simulada no limite HTTP. Não houve entrega real na caixa de entrada, navegação em navegador real ou teste com a conta de produção nesta versão. As validações de navegador de versões anteriores estão identificadas abaixo.
+
+Reprodução: o workflow wordpress-packages.yml prepara bancos isolados cujo nome termina em _test, executa as fixtures e só gera os pacotes após aprovação. O guia docs/EMAILS-POR-PRODUTO.md descreve configuração, marcadores, cron e interpretação do histórico.
+
+---
+
+## Histórico da validação — versão 2.6.1 — 30/10/2026
 
 - **77 verificações JavaScript aprovadas** em V8, executando o código de `assets/app.js` com DOM, janelas, armazenamento e RPC simulados.
 - Pix, boleto e cartão preparam a janela no clique, antes da requisição de checkout. A URL retornada é aberta nessa janela, e a loja mantém o pedido e seu acompanhamento.
