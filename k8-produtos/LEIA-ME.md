@@ -1,4 +1,4 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.5.0
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.6.0
 
 Plugin único criado a partir dos cinco arquivos de Paulo Maeda. Reúne cadastro de produtos, página pública de compra, cobrança K8, cupons, estoque, entregas com assinatura e painel por produto. Não exige WooCommerce.
 
@@ -29,7 +29,7 @@ Não reative os plugins antigos depois da migração: eles não conhecem o vínc
 
 Abra o produto em **K8 Produtos → Produtos e preços** e use o bloco **Descontos por data**. É possível informar um percentual ou um preço promocional, data de início opcional, data final obrigatória e turma opcional. Deixe o início vazio para aplicar imediatamente. O prazo vale até o fim do dia informado, conforme o fuso do WordPress.
 
-O catálogo e a compra exibem o preço original riscado, o preço com desconto e a validade. Faixas sobrepostas usam o menor preço válido, sem somá-las. O preço por turma continua prevalecendo sobre o preço padrão antes do cálculo do desconto. O catálogo mantém o preço original e o promocional sempre pareados à mesma turma.
+O catálogo e a compra exibem o preço original riscado, o preço com desconto e a validade. Faixas sobrepostas usam o menor preço válido, sem somá-las. O preço normal do produto é a base do cálculo; valores antigos por turma não são utilizados em novas compras. O catálogo mantém o preço original e o promocional sempre pareados à mesma turma.
 
 A acumulação com cupons só ocorre se você marcar essa opção no desconto. Sem acumulação, o sistema escolhe o melhor preço entre promoção e cupom, sem consumir um cupom que não melhorar a oferta. Um preço promocional nunca aumenta o preço normal. A opção de preço final zero permite registrar uma cortesia por período.
 
@@ -41,7 +41,7 @@ Após instalar esta versão, limpe o cache da home/CDN para carregar a atualiza�
 
 1. Abra **K8 Produtos → Produtos e preços** e clique em **Novo produto**.
 2. Informe nome e descrição, selecione as turmas disponíveis para esse produto e defina seu preço normal, prazo de vencimento e modelo de entrega. Outras turmas podem ser informadas no campo próprio, uma por linha.
-3. Salve o produto. Na mesma tela, cadastre o preço por data, com valor ou percentual promocional e data limite. Valores específicos por turma são opcionais e substituem o preço normal. Todos esses preços valem apenas para as turmas selecionadas no produto.
+3. Salve o produto. Na mesma tela, cadastre o preço por data, com valor ou percentual promocional e data limite. O preço normal é único no produto e obrigatório quando ele estiver ativo. O preço específico por turma foi retirado; as promoções continuam válidas para as turmas selecionadas no produto.
 4. Copie o shortcode exibido no cadastro para um bloco **Shortcode** de uma página do WordPress.
 
 Exemplos, substituindo os IDs pelos exibidos no seu painel:
@@ -70,6 +70,14 @@ Os shortcodes antigos continuam reconhecidos:
 
 A identificação agora acontece no próprio shortcode. Parâmetros de URL com RA, turma, CPF ou valor não são usados para autorizar compras.
 
+## Ocultar produto e excluir faixas
+
+Use **Situação do produto → Desativado — ocultar totalmente do site** no cadastro ou o botão **Desativar produto** na lista. O produto some da home, do catálogo e dos shortcodes. Seu link direto retorna 404, e consulta/cotação/compra/acompanhamento públicos ficam bloqueados. Produto, pedidos, estoque e entregas permanecem no painel, onde você também pode reativá-lo. A ação rápida de desativar funciona mesmo quando falta configurar o preço normal.
+
+Nas tabelas de preço e parcelamento por data, **Excluir faixa** remove a faixa após confirmação. Pausar com ativar/desativar continua disponível. Os pedidos anteriores conservam valores, nomes das campanhas e limites de parcelas registrados; novas compras consideram as faixas restantes e os padrões do produto.
+
+Preço específico por turma não é mais cadastrado nem aplicado. Confira o **Preço normal deste produto** ao atualizar, especialmente se antes só existiam valores por turma. O produto sem preço normal não aparece no catálogo até a configuração. Limpe o cache da home/CDN após atualizar ou mudar a visibilidade, se a hospedagem usar cache externo.
+
 ## Formas de pagamento e parcelas por data
 
 No cadastro de cada produto, marque as formas aceitas: **Pix, boleto e cartão de crédito**. Escolha o limite padrão do cartão, de 1 a 12 parcelas, e salve. Na mesma tela, em **Parcelamento por data deste produto**, cadastre períodos com outro limite. Exemplo: 6x como padrão e até 10x até 30/11. A data final inclui o dia inteiro no fuso do site; períodos ativos do mesmo produto não podem se sobrepor.
@@ -84,7 +92,7 @@ Na migração, os três métodos anteriores ficam habilitados e o padrão de **n
 
 No editor de cada produto, use **Turmas disponíveis para este produto** e **Preço por data deste produto**. Não existe preço que libere todas as turmas do site. Uma turma não selecionada não pode cotar nem criar nova compra, mesmo com preço antigo configurado. No formulário de preço por data, a opção “Turmas selecionadas neste produto” abrange somente a lista do produto aberto; você também pode escolher apenas uma dessas turmas.
 
-O preço normal é mostrado riscado junto ao valor promocional e à data limite durante a promoção. O último dia inteiro é incluído, no fuso do WordPress. Faixas são independentes por produto. O catálogo e as pendências do dashboard respeitam as turmas selecionadas. Pedidos já emitidos continuam acessíveis para acompanhamento, pagamento e entrega.
+O preço normal é mostrado riscado junto ao valor promocional e à data limite durante a promoção. O último dia inteiro é incluído, no fuso do WordPress. Faixas são independentes por produto. O catálogo e as pendências do dashboard respeitam as turmas selecionadas. Pedidos já emitidos conservam os dados para administração e entrega no painel. O acesso público exige que o produto esteja ativo.
 
 Depois de atualizar, revise as turmas de cada produto: a migração transforma o alcance anterior em seleção explícita das turmas atuais. Turmas importadas futuramente não são liberadas automaticamente. Produtos novos precisam de ao menos uma turma e de um preço aplicável para aparecer no catálogo.
 

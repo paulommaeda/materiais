@@ -12,7 +12,11 @@
     let result;
     try { result = await response.json(); }
     catch (_) { throw new Error('Não foi possível ler a resposta. Atualize a página ou consulte a secretaria.'); }
-    if (!response.ok || !result.success) throw new Error(result.data?.message || 'Não foi possível concluir a operação.');
+    if (!response.ok || !result.success) {
+      const error = new Error(result.data?.message || 'Não foi possível concluir a operação.');
+      error.code = result.data?.code || '';
+      throw error;
+    }
     return result.data;
   }
   function notice(root, message, success = false) {
@@ -55,8 +59,14 @@
     root.querySelectorAll('form[data-k8-manage]').forEach(form => {
       form.addEventListener('submit', async event => {
         event.preventDefault();
+        if (form.dataset.k8Confirm && !window.confirm(form.dataset.k8Confirm)) return;
         try { await send(form); } catch (_) { /* Mensagem já exibida. */ }
       });
+    });
+
+    root.querySelector('[data-k8-product-status]')?.addEventListener('change', event => {
+      const price = event.currentTarget.form.querySelector('[name=valor_padrao]');
+      if (price) price.required = event.currentTarget.value === '1';
     });
 
     root.querySelector('[data-k8-image]')?.addEventListener('click', event => {
@@ -158,11 +168,19 @@
     function forgetSession() {
       try { sessionStorage.removeItem(storageKey); } catch (_) { /* Navegação privada. */ }
     }
+    function hideProduct() {
+      clearTimeout(priceTimer);
+      forgetSession();
+      root.remove();
+    }
     async function request(op, fields = {}) {
       const payload = new FormData();
       Object.entries({action: 'k8prod_public', op, produto_id: product, nonce: state.nonce, token: state.token, ...fields})
         .forEach(([key, value]) => payload.set(key, String(value)));
-      return rpc(root.dataset.ajax, payload);
+      return rpc(root.dataset.ajax, payload).catch(error => {
+        if (error.code === 'product_unavailable') hideProduct();
+        throw error;
+      });
     }
     function showPrice(quote) {
       state.priceKey = quote.chave_preco;
@@ -264,7 +282,21 @@
       summary.replaceChildren(node('h3', student.nome_aluno), node('p', `Turma: ${student.turma} · Responsável: ${student.responsavel}`));
       await status();
     }
-    const ready = request('bootstrap').then(result => { state.nonce = result.nonce; });
+    const ready = request('bootstrap').then(async result => {
+      state.nonce = result.nonce;
+      const resultAvailability = await request('availability');
+      if (!resultAvailability.available) { hideProduct(); return false; }
+      root.hidden = false;
+      return true;
+    });
+    async function recheckAvailability() {
+      try {
+        if (!(await ready) || !root.isConnected) return;
+        if (!(await request('availability')).available) hideProduct();
+      } catch (_) { /* A próxima operação também confere a disponibilidade. */ }
+    }
+    window.addEventListener('pageshow', recheckAvailability);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) recheckAvailability(); });
     root.querySelector('[data-k8-lookup]').addEventListener('submit', async event => {
       event.preventDefault();
       const form = event.currentTarget;
@@ -322,6 +354,7 @@
       } finally { busy(checkout, false); }
     }));
     ready.then(async () => {
+      if (!root.isConnected) return;
       let saved;
       try { saved = JSON.parse(sessionStorage.getItem(storageKey)); } catch (_) { return; }
       if (!saved?.token || !saved.student) return;

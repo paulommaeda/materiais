@@ -17,7 +17,13 @@ final class Storefront
             return $vars;
         });
         add_filter('template_include', static function ($template) {
-            return get_query_var('bmt_produto') !== '' ? K8PROD_DIR . 'templates/product.php' : $template;
+            if (get_query_var('bmt_produto') === '') return $template;
+            try {
+                Support::product(absint(get_query_var('bmt_produto')), true);
+                return K8PROD_DIR . 'templates/product.php';
+            } catch (\InvalidArgumentException $e) {
+                return get_404_template() ?: $template;
+            }
         }, 100);
         add_action('template_redirect', static function () {
             if (get_query_var('bmt_produto') === '') {
@@ -31,7 +37,10 @@ final class Storefront
                 Support::product(absint(get_query_var('bmt_produto')), true);
                 status_header(200);
             } catch (\Throwable $e) {
+                global $wp_query;
+                $wp_query->set_404();
                 status_header(404);
+                return;
             }
             remove_action('wp_head', 'rel_canonical');
             add_action('wp_head', static function () {
@@ -43,7 +52,7 @@ final class Storefront
                 try {
                     $parts['title'] = Support::product(absint(get_query_var('bmt_produto')), true)->nome;
                 } catch (\Throwable $e) {
-                    $parts['title'] = 'Produto indisponível';
+                    $parts['title'] = 'Página não encontrada';
                 }
             }
             return $parts;
@@ -67,13 +76,12 @@ final class Storefront
     {
         global $wpdb;
         $products = Support::table('produtos');
-        $prices = Support::table('valores_turma');
         $where = 'p.ativo = 1 AND p.publicado = 1';
         if (isset(self::categories()[$category])) {
             $where .= $wpdb->prepare(' AND p.categoria = %s', $category);
         }
         $items = $wpdb->get_results("SELECT p.*
-            FROM $products p WHERE $where AND (p.valor_padrao IS NOT NULL OR EXISTS(SELECT 1 FROM $prices v WHERE v.produto_id = p.id))
+            FROM $products p WHERE $where AND p.valor_padrao IS NOT NULL
             ORDER BY p.ordem ASC,p.nome ASC");
         $quotes = Discounts::catalog_prices($items);
         $terms = PaymentTerms::for_products($items);

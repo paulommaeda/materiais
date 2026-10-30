@@ -1,4 +1,4 @@
-# Formas de pagamento e parcelas por data — versão 2.5.0
+# Formas de pagamento e parcelas por data — versão 2.6.0
 
 ## Configurar o produto
 
@@ -15,6 +15,14 @@ Os períodos ativos de parcelamento do mesmo produto não podem se sobrepor. Ao 
 O número configurado é o **máximo de parcelas**. O comprador escolhe a quantidade efetiva no checkout da K8, dentro desse limite. Pix e boleto continuam com pagamento à vista; essa configuração não cria carnê de boletos. A quantidade efetiva e as condições do cartão são confirmadas no checkout da K8.
 
 Cada produto conserva suas formas aceitas, seus limites de parcelas, suas faixas de preço e suas turmas. Desabilitar cartão em um produto esconde essa opção e recusa novas tentativas no servidor, mantendo os outros produtos independentes. Uma faixa de cartão cadastrada fica sem efeito enquanto o cartão estiver desabilitado.
+
+## Excluir faixas e desativar o produto
+
+Nas tabelas de preço e parcelamento por data, **Excluir faixa** remove a faixa escolhida depois da confirmação. Os pedidos já emitidos conservam seus valores e limites. As novas compras usam as condições restantes ou os padrões do produto.
+
+Em **Situação do produto**, escolha **Desativado — ocultar totalmente do site**. A lista de produtos também oferece uma ação rápida de desativar/reativar. Um produto desativado fica fora do catálogo e dos shortcodes, seu link direto retorna 404 e as operações públicas são bloqueadas. Os pedidos e os pagamentos já emitidos mantêm o registro e a conferência no painel.
+
+O preço normal agora é único por produto; o cadastro de preço específico por turma foi retirado. Se o produto só tinha valores por turma, configure seu preço normal antes de reativar as vendas.
 
 ## Compra e condições registradas
 

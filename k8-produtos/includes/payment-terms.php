@@ -148,6 +148,16 @@ final class PaymentTerms
         return $seconds;
     }
 
+    public static function delete(int $product, int $id): void
+    {
+        Support::lock('payment-terms:' . $product, static function () use ($product, $id) {
+            global $wpdb;
+            if (Support::must($wpdb->delete(Support::table('parcelamento_data'), ['id' => $id, 'produto_id' => $product])) !== 1) {
+                throw new \InvalidArgumentException('Faixa de parcelamento não encontrada neste produto.');
+            }
+        });
+    }
+
     public static function render(array $terms): string
     {
         if (in_array('Cartao', $terms['formas_pagamento'], true)) {

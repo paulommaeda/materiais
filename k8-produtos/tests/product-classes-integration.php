@@ -59,7 +59,7 @@ $b=classes_product('Escopo produto B',['Turma B'],'2000');
 classes_check(Classes::selected($a)===['Turma A']&&Classes::selected($b)===['Turma B'],'cada produto guarda sua própria seleção');
 classes_check(Service::price($a,'Turma A')===1000.0&&Service::price($a,'Turma B')===null,'preço normal não libera turma fora da seleção');
 classes_check(Service::price($b,'Turma B')===2000.0&&Service::price($b,'Turma A')===null,'seleção de um produto não interfere no outro');
-classes_rejects(fn()=>classes_mutate('save_price',(int)$a->id,['turma'=>'Turma B','valor'=>1]),'preço por turma não libera turma excluída');
+classes_rejects(fn()=>classes_mutate('save_price',(int)$a->id,['turma'=>'Turma B','valor'=>1]),'operação antiga de preço por turma não está mais disponível');
 $rule=classes_rule($a,'Promoção exclusiva produto A');
 $quote=Service::quote($a,classes_person('ESCOPO-A','Turma A'));
 classes_check($quote['original']==1000&&$quote['valor']==800&&$quote['promocao_id']===$rule,'preço por data fica vinculado ao produto');
@@ -87,7 +87,7 @@ $paid=Service::checkout($a,classes_person('ESCOPO-A','Turma A'),'Cortesia','ESCO
 $stored=Service::order((int)$a->id,$paid['id']);
 $token=Students::issue((int)$a->id,Students::find('52998224725','ESCOPO-A')[0]);
 $a=classes_product('Escopo produto A',['Turma B'],'1000',(int)$a->id);
-classes_check(Service::price($a,'Turma A')===null&&Service::price($a,'Turma B')===1.0,'editar turmas altera somente a disponibilidade do produto salvo');
+classes_check(Service::price($a,'Turma A')===null&&Service::price($a,'Turma B')===1000.0,'editar turmas altera somente a disponibilidade do produto salvo');
 classes_check(Classes::selected(S::product((int)$b->id))===['Turma B'],'editar produto A preserva seleção do B');
 $person=Students::context((int)$a->id,$token);
 classes_rejects(fn()=>Service::quote($a,$person),'consulta antiga não contorna mudança das turmas');

@@ -9,10 +9,7 @@ final class Service
         if (!ProductClasses::allows($product, $class)) {
             return null;
         }
-        global $wpdb;
-        $table = Support::table('valores_turma');
-        $price = $wpdb->get_var($wpdb->prepare("SELECT valor FROM $table WHERE produto_id = %d AND turma = %s", $product->id, $class));
-        return $price !== null ? (float) $price : ($product->valor_padrao !== null ? (float) $product->valor_padrao : null);
+        return $product->valor_padrao !== null ? (float) $product->valor_padrao : null;
     }
 
     public static function active(int $product, string $ra): ?object
@@ -53,6 +50,7 @@ final class Service
 
     public static function quote(object $product, array $person, string $code = ''): array
     {
+        $product = Support::product((int) $product->id, true);
         $dated = Discounts::price($product, $person['turma']);
         if ($dated === null) {
             throw new \InvalidArgumentException('Produto indisponível ou sem preço para esta turma. Contate a secretaria.');
@@ -107,6 +105,7 @@ final class Service
     public static function checkout(object $product, array $person, string $method, string $code, ?string $price_key = null): array
     {
         return Support::lock('checkout:' . $product->id . ':' . $person['ra'], static function () use ($product, $person, $method, $code, $price_key) {
+            $product = Support::product((int) $product->id, true);
             global $wpdb;
             $orders = Support::table('pedidos');
             $existing = self::active((int) $product->id, $person['ra']);

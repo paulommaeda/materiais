@@ -42,9 +42,9 @@ final class Views
         echo '<div class="k8prod ' . esc_attr($extra) . '" data-ajax="' . esc_url(admin_url('admin-ajax.php')) . '" data-nonce="' . esc_attr(wp_create_nonce('k8prod_manage')) . '"><div class="k8-notice" role="status" aria-live="polite" hidden></div>';
     }
 
-    private static function form(string $op, int $product, string $class = ''): void
+    private static function form(string $op, int $product, string $class = '', string $confirmation = ''): void
     {
-        echo '<form class="k8-form ' . esc_attr($class) . '" data-k8-manage="' . esc_attr($op) . '"><input type="hidden" name="produto_id" value="' . (int) $product . '">';
+        echo '<form class="k8-form ' . esc_attr($class) . '" data-k8-manage="' . esc_attr($op) . '"' . ($confirmation ? ' data-k8-confirm="' . esc_attr($confirmation) . '"' : '') . '><input type="hidden" name="produto_id" value="' . (int) $product . '">';
     }
 
     private static function field(string $name, string $label, $value = '', string $type = 'text', string $extra = ''): void
@@ -68,7 +68,7 @@ final class Views
         try {
             $product = Support::product(absint($atts['id'] ?: $atts['produto']), true);
         } catch (\Throwable $e) {
-            return '<p>' . esc_html($e->getMessage()) . '</p>';
+            return '';
         }
         self::assets();
         if (!defined('DONOTCACHEPAGE')) {
@@ -76,7 +76,7 @@ final class Views
         }
         ob_start();
         ?>
-        <section class="k8prod k8-public" data-k8-product="<?php echo (int) $product->id; ?>" data-stages="<?php echo (int) $product->etapas; ?>" data-ajax="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">
+        <section class="k8prod k8-public" data-k8-product="<?php echo (int) $product->id; ?>" data-stages="<?php echo (int) $product->etapas; ?>" data-ajax="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" hidden>
             <div class="k8-eyebrow">Compra e acompanhamento</div>
             <h2><?php echo esc_html($product->nome); ?></h2>
             <?php if ($product->descricao): ?><p class="k8-muted"><?php echo nl2br(esc_html($product->descricao)); ?></p><?php endif; ?>
@@ -195,13 +195,11 @@ final class Views
         }
         echo '</div>';
         $paid = array_fill_keys($wpdb->get_col($wpdb->prepare("SELECT DISTINCT ra FROM $orders WHERE produto_id = %d AND status_pagamento = 'Paga'", $p->id)), true);
-        $prices = Support::table('valores_turma');
-        $classes = $wpdb->get_col($wpdb->prepare("SELECT turma FROM $prices WHERE produto_id = %d", $p->id));
         $summary = [];
         $pending = [];
         try {
             foreach (Students::all() as $student) {
-                if ((!ProductClasses::allows($p, $student->turma) || ($p->valor_padrao === null && !in_array($student->turma, $classes, true))) && !isset($paid[$student->ra])) {
+                if ((!ProductClasses::allows($p, $student->turma) || $p->valor_padrao === null) && !isset($paid[$student->ra])) {
                     continue;
                 }
                 if (!isset($summary[$student->turma])) {
@@ -539,7 +537,11 @@ final class Views
         wp_enqueue_media();
         echo '<h1>Produtos e preços</h1><div class="k8-grid k8-product-editor-grid"><section class="k8-card"><h2>Produtos cadastrados</h2><a href="' . esc_url(admin_url('admin.php?page=k8prod-products')) . '">+ Novo produto</a><ul class="k8-product-list">';
         foreach (Support::products() as $product) {
-            echo '<li><a href="' . esc_url(admin_url('admin.php?page=k8prod-products&produto_id=' . $product->id)) . '">' . esc_html($product->nome) . '</a> ' . ($product->ativo ? '' : '<span class="k8-muted">Inativo</span>') . '<br><code>[k8_produto id="' . (int) $product->id . '"]</code></li>';
+            echo '<li><a href="' . esc_url(admin_url('admin.php?page=k8prod-products&produto_id=' . $product->id)) . '">' . esc_html($product->nome) . '</a> ' . ($product->ativo ? '' : '<span class="k8-muted">Inativo</span>') . '<br><code>[k8_produto id="' . (int) $product->id . '"]</code>';
+            self::form('set_product_status', (int) $product->id, 'k8-visibility-action');
+            echo '<input type="hidden" name="ativo" value="' . ($product->ativo ? '0' : '1') . '">';
+            self::button($product->ativo ? 'Desativar produto' : 'Reativar produto');
+            echo '</form></li>';
         }
         echo '</ul></section><div class="k8-product-editor"><section class="k8-card">';
         $id = absint($_GET['produto_id'] ?? 0);
@@ -556,6 +558,7 @@ final class Views
         }
         echo '<h2>' . ($id ? 'Editar produto: ' . esc_html($p->nome) : 'Criar produto') . '</h2>';
         self::form('save_product', $id);
+        echo '<label>Situação do produto<select name="ativo" data-k8-product-status><option value="1" ' . selected($p->ativo, 1, false) . '>Ativo no site</option><option value="0" ' . selected($p->ativo, 0, false) . '>Desativado — ocultar totalmente do site</option></select></label><p class="k8-muted">Ao desativar, o produto sai da home, dos catálogos e dos shortcodes. O link direto passa a retornar página não encontrada. Pedidos, estoque e entregas continuam disponíveis no painel.</p>';
         self::field('nome', 'Nome', $p->nome, 'text', 'required maxlength="255"');
         echo '<label>Descrição<textarea name="descricao" rows="3">' . esc_textarea($p->descricao) . '</textarea></label>';
         echo '<label>Categoria<select name="categoria">';
@@ -570,34 +573,18 @@ final class Views
         self::field('ordem', 'Ordem de exibição no catálogo', $p->ordem, 'number');
         echo '<label class="k8-check"><input type="checkbox" name="publicado" value="1" ' . checked($p->publicado, 1, false) . '>Exibir este produto na home e no catálogo</label>';
         self::classes_form($p);
-        self::field('valor_padrao', 'Preço normal deste produto (R$)', $p->valor_padrao ?? '', 'text', 'inputmode="decimal"');
-        echo '<p class="k8-muted">Este preço vale somente para as turmas selecionadas acima. Se ficar vazio, cadastre um preço específico para cada turma deste produto.</p>';
+        self::field('valor_padrao', 'Preço normal deste produto (R$)', $p->valor_padrao ?? '', 'text', 'inputmode="decimal" ' . ($p->ativo ? 'required' : ''));
+        echo '<p class="k8-muted">Este é o preço normal do produto para as turmas selecionadas. Configure as promoções em Preço por data abaixo.</p>';
         self::payment_settings($p);
         echo '<label>Modelo de entrega<select name="etapas"><option value="1" ' . selected($p->etapas, 1, false) . '>Entrega única</option><option value="2" ' . selected($p->etapas, 2, false) . '>Duas etapas / semestres</option></select></label>';
         self::field('vencimento_dias', 'Dias para vencimento da cobrança', $p->vencimento_dias, 'number', 'min="1" max="365" required');
-        echo '<label class="k8-check"><input type="checkbox" name="permitir_negativo" value="1" ' . checked($p->permitir_negativo, 1, false) . '>Permitir saídas com estoque negativo</label><label class="k8-check"><input type="checkbox" name="ativo" value="1" ' . checked($p->ativo, 1, false) . '>Produto ativo para novas compras</label>';
+        echo '<label class="k8-check"><input type="checkbox" name="permitir_negativo" value="1" ' . checked($p->permitir_negativo, 1, false) . '>Permitir saídas com estoque negativo</label>';
         self::button('Salvar produto');
         echo '</form></section>';
         if ($id) {
             self::discounts_form($id);
             self::payment_periods_form($id);
-            echo '<section class="k8-card"><h2>Publicar e administrar este produto</h2><p><a target="_blank" rel="noopener" href="' . esc_url(Storefront::url($id)) . '">Abrir página de compra deste produto ↗</a></p><p>Fluxo de compra: <code>[k8_produto id="' . $id . '"]</code></p><p>Painel iniciando neste produto: <code>[k8_dashboard produto="' . $id . '"]</code></p></section><section class="k8-card"><h2>Preço específico por turma deste produto</h2><p class="k8-muted">Opcional: o preço específico substitui o preço normal para esta turma. Ele só vale se a turma continuar selecionada no cadastro acima.</p>';
-            self::form('save_price', $id, 'k8-inline');
-            self::class_select($p, 'turma', 'Turma deste produto');
-            self::field('valor', 'Valor (R$)', '', 'text', 'required inputmode="decimal"');
-            self::button('Salvar preço');
-            echo '</form>';
-            $table = Support::table('valores_turma');
-            self::table_start(['Turma', 'Preço', 'Ação']);
-            foreach ($wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE produto_id = %d ORDER BY turma", $id)) as $price) {
-                echo '<tr><td>' . esc_html($price->turma) . (ProductClasses::allows($p, $price->turma) ? '' : '<br><small>Turma não selecionada; preço sem efeito.</small>') . '</td><td>' . esc_html(self::currency($price->valor)) . '</td><td>';
-                self::form('remove_price', $id);
-                echo '<input type="hidden" name="id" value="' . (int) $price->id . '">';
-                self::button('Remover preço');
-                echo '</form></td></tr>';
-            }
-            self::table_end();
-            echo '</section>';
+            echo '<section class="k8-card"><h2>Publicar e administrar este produto</h2><p><a target="_blank" rel="noopener" href="' . esc_url(Storefront::url($id)) . '">Abrir página de compra deste produto ↗</a></p><p>Fluxo de compra: <code>[k8_produto id="' . $id . '"]</code></p><p>Painel iniciando neste produto: <code>[k8_dashboard produto="' . $id . '"]</code></p></section>';
         } else {
             echo '<section class="k8-card"><h2>Preço e parcelamento por data deste produto</h2><p>Salve o produto com suas turmas e formas de pagamento para cadastrar os preços promocionais e os períodos de parcelamento nesta mesma tela.</p></section>';
         }
@@ -662,6 +649,10 @@ final class Views
             self::form('toggle_payment_period', $product);
             echo '<input type="hidden" name="id" value="' . (int) $row->id . '">';
             self::button($row->ativo ? 'Desativar' : 'Ativar');
+            echo '</form>';
+            self::form('delete_payment_period', $product, '', 'Excluir esta faixa de parcelamento? Os pedidos já emitidos manterão suas condições.');
+            echo '<input type="hidden" name="id" value="' . (int) $row->id . '">';
+            self::button('Excluir faixa');
             echo '</form></td></tr>';
         }
         self::table_end();
@@ -717,6 +708,10 @@ final class Views
             self::form('toggle_discount', $product);
             echo '<input type="hidden" name="id" value="' . (int) $row->id . '">';
             self::button($row->ativo ? 'Desativar' : 'Ativar');
+            echo '</form>';
+            self::form('delete_discount', $product, '', 'Excluir esta faixa de preço? Os pedidos já emitidos manterão seus valores.');
+            echo '<input type="hidden" name="id" value="' . (int) $row->id . '">';
+            self::button('Excluir faixa');
             echo '</form></td></tr>';
         }
         self::table_end();

@@ -91,17 +91,17 @@ discount_rejects(fn()=>Service::checkout($stale,discount_person('DESC-002'),'Pix
 discount_check(Service::active((int)$stale->id,'DESC-002')===null,'mudança de preço não deixa pedido iniciado');
 discount_rejects(fn()=>Service::checkout($stale,discount_person('DESC-003'),'Pix','',''),'requisição sem cotação confirmada não cria cobrança');
 
-$c=discount_product('Preços por turma',null);
+$c=discount_product('Preço normal único e promoções',1000);
 $wpdb->insert(S::table('valores_turma'),['produto_id'=>$c->id,'turma'=>'Turma A','valor'=>1000]);
 $wpdb->insert(S::table('valores_turma'),['produto_id'=>$c->id,'turma'=>'Turma B','valor'=>600]);
 discount_rule($c,['tipo'=>'preco','valor'=>800,'turma_restrita'=>'Turma A','inicio'=>'','fim'=>$tomorrow]);
 $prices=D::catalog_prices([$c]);
-discount_check($prices[$c->id]['original']==600&&$prices[$c->id]['valor']==600&&$prices[$c->id]['promocao']===null,'catálogo não inventa desconto ao combinar turmas diferentes');
+discount_check($prices[$c->id]['original']==1000&&$prices[$c->id]['valor']==800,'catálogo usa o preço normal do produto e ignora preços antigos por turma');
 discount_rule($c,['tipo'=>'percentual','valor'=>50,'turma_restrita'=>'Turma B','inicio'=>'','fim'=>$tomorrow]);
 $prices=D::catalog_prices([$c]);
-discount_check($prices[$c->id]['original']==600&&$prices[$c->id]['valor']==300,'preço normal e promocional do catálogo pertencem à mesma turma');
+discount_check($prices[$c->id]['original']==1000&&$prices[$c->id]['valor']==500,'preço normal e promocional do catálogo pertencem à mesma turma');
 $html=D::render_price($prices[$c->id]);
-discount_check(strpos($html,'<del')!==false&&strpos($html,'R$ 600,00')!==false&&strpos($html,'R$ 300,00')!==false&&strpos($html,D::date_label($tomorrow))!==false,'card mostra preço real riscado, preço menor e data');
+discount_check(strpos($html,'<del')!==false&&strpos($html,'R$ 1.000,00')!==false&&strpos($html,'R$ 500,00')!==false&&strpos($html,D::date_label($tomorrow))!==false,'card mostra preço real riscado, preço menor e data');
 $fallback=discount_product('Turma com preço padrão');
 discount_rule($fallback,['tipo'=>'preco','valor'=>450,'turma_restrita'=>'Turma específica','inicio'=>'','fim'=>$tomorrow]);
 discount_check(D::catalog_prices([$fallback])[$fallback->id]['valor']==450,'promoção específica usa padrão quando turma não tem preço próprio');

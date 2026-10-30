@@ -59,34 +59,22 @@ final class ProductClasses
 
     public static function options(object $product): array
     {
-        global $wpdb;
         try {
             $classes = Students::classes();
         } catch (\Throwable $e) {
             $classes = [];
         }
-        $prices = !empty($product->id) ? $wpdb->get_col($wpdb->prepare('SELECT turma FROM ' . Support::table('valores_turma') . ' WHERE produto_id = %d', $product->id)) : [];
-        return self::normalize(array_merge($classes, self::selected($product), $prices));
+        return self::normalize(array_merge($classes, self::selected($product)));
     }
 
-    /** Preços apenas das turmas explicitamente liberadas em cada produto. */
+    /** O preço normal é único no produto, dentro de suas turmas liberadas. */
     public static function price_choices(array $products): array
     {
-        global $wpdb;
-        if (!$products) {
-            return [];
-        }
-        $ids = array_map('intval', array_column($products, 'id'));
-        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
-        $overrides = [];
-        foreach ($wpdb->get_results($wpdb->prepare('SELECT produto_id,turma,valor FROM ' . Support::table('valores_turma') . " WHERE produto_id IN ($placeholders)", $ids)) as $price) {
-            $overrides[$price->produto_id][$price->turma] = (float) $price->valor;
-        }
         $result = [];
         foreach ($products as $product) {
             $choices = [];
             foreach (self::selected($product) as $class) {
-                $price = $overrides[$product->id][$class] ?? ($product->valor_padrao !== null ? (float) $product->valor_padrao : null);
+                $price = $product->valor_padrao !== null ? (float) $product->valor_padrao : null;
                 if ($price !== null) {
                     $choices[$class] = $price;
                 }

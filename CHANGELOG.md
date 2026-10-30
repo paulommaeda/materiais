@@ -1,5 +1,14 @@
 # Alterações
 
+## Plugin 2.6.0
+
+- Campo Situação do produto com desativação total e ação rápida de desativar/reativar na lista administrativa.
+- Produto desativado não aparece em catálogo ou shortcode, retorna 404 no link direto e bloqueia operações públicas. Disponibilidade é revalidada no navegador para ocultar conteúdo antigo de compra.
+- Retira o preço específico por turma do editor, das operações de administração e dos cálculos. Novas compras usam o preço normal do produto e suas faixas por data; produtos ativos exigem preço normal.
+- Adiciona Excluir faixa às tabelas de preço e parcelamento por data, com confirmação e verificação de vínculo ao produto.
+- Excluir faixas preserva as condições dos pedidos já emitidos. Cotações abertas são revalidadas antes de gerar novos pagamentos.
+- Desativação mantém pedidos, estoque e entregas no painel administrativo.
+
 ## Plugin 2.5.0
 
 - Escolha de Pix, boleto e cartão de crédito no cadastro de cada produto, com validação no servidor e exibição somente das opções aceitas.

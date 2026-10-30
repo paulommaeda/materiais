@@ -1,4 +1,23 @@
-# Validação — versão 2.5.0 — 30/10/2026
+# Validação — versão 2.6.0 — 30/10/2026
+
+Ambiente local descartável: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151. Nenhum acesso ao WordPress de produção.
+
+- **282 verificações de integração aprovadas:** 37 novas de ocultação/exclusão e as 245 anteriores, ajustadas para a retirada do preço específico por turma.
+- Preço normal único por produto; valores antigos por turma são preservados no banco e ignorados em novos cálculos. Produtos ativos exigem preço normal; a desativação rápida funciona mesmo com cadastro incompleto.
+- Exclusão física de faixas ativas e inativas, erro para faixa inexistente, proteção contra excluir faixa de outro produto e liberação do período para novo cadastro após a exclusão.
+- Deletar preço ou parcelamento mantém valores, nomes e limites no pedido histórico. Cotação anterior à exclusão é recusada antes de emitir pagamento.
+- Desativação e reativação isoladas por produto, catálogo e shortcodes vazios quando desativado, bloqueio de cotação/checkout com objeto antigo e preservação de pedidos e estoque para administração.
+- No navegador: confirmações de exclusão, cancelamento da confirmação sem gravar, remoção real de faixas e retorno ao preço normal/parcelamento padrão, com cotação antiga bloqueada.
+- HTTP real: home e página com shortcode não revelam o produto desativado, link direto retorna 404 sem nome do produto e lookup/quote/checkout/status retornam 404 com código de produto indisponível.
+- Conteúdo de compra anterior servido como cache foi ocultado após revalidação; catálogo e compra abertos removem o produto ao receber nova consulta. A ação rápida de reativar restaura a página de compra.
+- Atualizador nativo 2.5.0 → 2.6.0 conferiu o SHA-256 e preservou pedidos anteriores. Faixas criadas na versão anterior puderam ser excluídas mantendo seus valores e parcelas nos pedidos; preço antigo por turma deixou de interferir no cálculo.
+- Inspeção visual em 1440 px e 390 px, sem preço específico por turma, com Situação do produto e Excluir faixa, sem transbordamento da página ou erros JavaScript.
+
+Os testes usam cadastros sintéticos e provedores simulados quando há comunicação financeira. Nenhuma cobrança real ou mensagem foi enviada. Pedidos emitidos permanecem preservados; a alteração trata visibilidade pública e configuração de preços.
+
+---
+
+## Histórico da validação — versão 2.5.0 — 30/10/2026
 
 Ambiente local descartável: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151. Nenhum acesso ao WordPress de produção.
 

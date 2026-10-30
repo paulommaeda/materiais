@@ -50,7 +50,13 @@ final class Http
                 wp_send_json_success(['prices' => (object) $html, 'refresh_after' => min(Discounts::refresh_after($ids), PaymentTerms::refresh_after($ids))]);
             }
             $id = absint($data['produto_id'] ?? 0);
-            $product = Support::product($id, true);
+            try {
+                $product = Support::product($id, true);
+            } catch (\InvalidArgumentException $e) {
+                if ($op === 'availability') wp_send_json_success(['available' => false]);
+                wp_send_json_error(['message' => 'Produto indisponível.', 'code' => 'product_unavailable'], 404);
+            }
+            if ($op === 'availability') wp_send_json_success(['available' => true]);
             if ($op === 'lookup') {
                 $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
                 self::rate('lookup-ip:' . $ip, 30, 15 * MINUTE_IN_SECONDS);
@@ -110,7 +116,7 @@ final class Http
             $data = wp_unslash($_POST);
             $op = Support::text($data, 'op');
             $id = absint($data['produto_id'] ?? 0);
-            if (in_array($op, ['save_product', 'settings'], true)) {
+            if (in_array($op, ['save_product', 'set_product_status', 'settings'], true)) {
                 if (!current_user_can('manage_options')) {
                     throw new \RuntimeException('Somente administradores podem alterar esta configuração.');
                 }
@@ -130,6 +136,15 @@ final class Http
     private static function mutate(string $op, int $id, array $data): array
     {
         global $wpdb;
+        if ($op === 'set_product_status') {
+            $product = Support::product($id);
+            $active = $data['ativo'] ?? null;
+            if (!in_array($active, [0, 1, '0', '1'], true)) throw new \InvalidArgumentException('Escolha uma situação válida para o produto.');
+            if ((int) $active === 1 && $product->valor_padrao === null) throw new \InvalidArgumentException('Informe o preço normal do produto antes de reativá-lo.');
+            Support::must($wpdb->update(Support::table('produtos'), ['ativo' => (int) $active], ['id' => $id]));
+            do_action('k8prod_product_visibility_changed', $id, (bool) $active);
+            return ['message' => (int) $active ? 'Produto reativado.' : 'Produto desativado e ocultado do site.'];
+        }
         if ($op === 'save_product') {
             $name = Support::text($data, 'nome');
             $stages = (int) ($data['etapas'] ?? 1);
@@ -147,6 +162,9 @@ final class Http
             }
             $classes = ProductClasses::input($data);
             $payment_terms = PaymentTerms::input($data);
+            if (!empty($data['ativo']) && Support::text($data, 'valor_padrao') === '') {
+                throw new \InvalidArgumentException('Informe o preço normal deste produto para mantê-lo ativo.');
+            }
             $record = ['nome' => $name, 'descricao' => sanitize_textarea_field($data['descricao'] ?? ''),
                 'turmas_disponiveis' => wp_json_encode($classes),
                 'valor_padrao' => Support::text($data, 'valor_padrao') === '' ? null : Support::money($data['valor_padrao']),
@@ -170,6 +188,7 @@ final class Http
                 Support::must($wpdb->insert($table, $record));
                 $id = (int) $wpdb->insert_id;
             }
+            do_action('k8prod_product_visibility_changed', $id, (bool) $record['ativo']);
             return ['redirect' => admin_url('admin.php?page=k8prod-products&produto_id=' . $id), 'produto_id' => $id];
         }
         if ($op === 'save_discount') {
@@ -182,19 +201,12 @@ final class Http
             PaymentTerms::toggle($id, absint($data['id'] ?? 0));
         } elseif ($op === 'toggle_discount') {
             Discounts::toggle($id, absint($data['id'] ?? 0));
-        } elseif ($op === 'save_price') {
-            $class = Support::text($data, 'turma');
-            if (!$class || strlen($class) > 100) {
-                throw new \InvalidArgumentException('Informe a turma.');
-            }
-            if (!ProductClasses::allows(Support::product($id), $class)) {
-                throw new \InvalidArgumentException('Selecione esta turma no cadastro do produto antes de definir seu preço.');
-            }
-            $table = Support::table('valores_turma');
-            Support::must($wpdb->query($wpdb->prepare("INSERT INTO $table (produto_id,turma,valor) VALUES (%d,%s,%s)
-                ON DUPLICATE KEY UPDATE valor = VALUES(valor)", $id, $class, Support::money($data['valor'] ?? ''))));
-        } elseif ($op === 'remove_price') {
-            Support::must($wpdb->delete(Support::table('valores_turma'), ['id' => absint($data['id'] ?? 0), 'produto_id' => $id]));
+        } elseif ($op === 'delete_discount') {
+            Discounts::delete($id, absint($data['id'] ?? 0));
+            return ['message' => 'Faixa de preço excluída.', 'redirect' => admin_url('admin.php?page=k8prod-products&produto_id=' . $id . '#descontos-data')];
+        } elseif ($op === 'delete_payment_period') {
+            PaymentTerms::delete($id, absint($data['id'] ?? 0));
+            return ['message' => 'Faixa de parcelamento excluída.', 'redirect' => admin_url('admin.php?page=k8prod-products&produto_id=' . $id . '#parcelamento-data')];
         } elseif ($op === 'save_coupon') {
             $code = strtoupper(Support::text($data, 'codigo'));
             $percent = (float) str_replace(',', '.', Support::text($data, 'percentual'));

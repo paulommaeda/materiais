@@ -5,10 +5,10 @@ Site WordPress com um plugin unificado e um tema próprio. Cadastro e importaç�
 ## Instalar
 
 1. Faça backup do WordPress e do banco antes de migrar os plugins anteriores.
-2. Baixe [k8-produtos-2.5.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.5.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
+2. Baixe [k8-produtos-2.6.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.6.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
 3. Baixe [bmt-educacional-1.0.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/bmt-educacional-1.0.0.zip), instale em **Aparência → Temas → Adicionar tema → Enviar tema** e ative **BMT Educacional**.
 4. Abra **K8 Produtos → Alunos**. A base anterior `lista_alunos_v4` e os vínculos de `sba_guardians` são reaproveitados. Importe o CSV quando precisar atualizar o cadastro.
-5. Em **K8 Produtos → Produtos e preços**, abra ou crie um produto, selecione suas turmas e cadastre categoria, descrição, imagem opcional e preço normal ou valores por turma. Marque **Exibir este produto na home e no catálogo**.
+5. Em **K8 Produtos → Produtos e preços**, abra ou crie um produto, selecione suas turmas e cadastre categoria, descrição, imagem opcional e preço normal do produto. Marque **Exibir este produto na home e no catálogo**.
 6. Confira as credenciais e os endpoints em **K8 Produtos → Configurações**. Homologue uma cobrança na sua conta K8 antes de liberar pagamentos reais.
 
 O tema assume a apresentação da página inicial ao ser ativado. Produtos ativos, publicados e com preço configurado aparecem automaticamente na home, com filtros para didáticos, paradidáticos e eventos. Cada produto abre sua página de compra sem exigir criar uma página ou colar um shortcode. As páginas antigas com shortcode continuam disponíveis.
@@ -35,12 +35,24 @@ Não basta editar arquivos PHP sem gerar os pacotes e aumentar a versão. Os sit
 Em **K8 Produtos → Produtos e preços**, abra o produto que deseja configurar. No cadastro ficam **Turmas disponíveis para este produto**, **Preço normal deste produto** e **Preço por data deste produto**. Cada produto tem sua própria seleção, preços e faixas de promoção; não há liberação geral de turmas por preço.
 
 1. Marque as turmas que poderão comprar. A lista usa as turmas da base de alunos; se necessário, informe outras turmas no campo próprio, uma por linha. É necessário escolher ao menos uma turma para salvar.
-2. Cadastre o preço normal do produto. Esse valor só vale para as turmas selecionadas. Você também pode deixar o valor vazio e cadastrar preços específicos para as turmas desse produto.
+2. Cadastre o preço normal do produto, válido para as turmas selecionadas. Esse campo é obrigatório para produtos ativos. O cadastro de preço específico por turma foi retirado; valores antigos por turma não participam de novas compras.
 3. Salve o produto e, na mesma tela, use **Preço por data deste produto**. A faixa pode abranger as turmas selecionadas nesse produto ou apenas uma delas.
 
-Uma turma não selecionada não pode gerar nova compra, mesmo que exista um preço ou desconto antigo para ela. O catálogo calcula o menor preço somente entre as turmas liberadas com preço, e o dashboard usa essa seleção nas pendências e na adesão. Pedidos já emitidos permanecem acessíveis para acompanhamento e entrega, com seus valores históricos.
+Uma turma não selecionada não pode gerar nova compra, mesmo que exista um preço ou desconto antigo para ela. O catálogo considera o preço normal do produto e as promoções aplicáveis às turmas liberadas; o dashboard usa essa seleção nas pendências e na adesão. Pedidos já emitidos conservam os valores históricos e a administração no painel. O acompanhamento público depende de o produto continuar ativo.
 
-Turmas novas importadas pelo painel ou pela API aparecem como opções para seleção; não são liberadas automaticamente nos produtos. Na atualização da versão anterior, os produtos com preço normal recebem uma seleção explícita das turmas atuais da base e das turmas com preço próprio; produtos sem preço normal recebem somente suas turmas com preço. Revise essa seleção em cada produto. Se não houver turmas conhecidas nem preços por turma, o produto aguarda a seleção antes de aparecer no catálogo.
+Turmas novas importadas pelo painel ou pela API aparecem como opções para seleção; não são liberadas automaticamente nos produtos. A migração das versões anteriores preserva a seleção de turmas. Produtos que só tinham preço por turma precisam receber um preço normal no produto para voltar a aparecer no catálogo. Nenhum preço normal é inventado a partir de valores distintos por turma; os pedidos anteriores conservam seus valores.
+
+### Desativar e ocultar o produto
+
+No editor, use **Situação do produto → Desativado — ocultar totalmente do site** e salve. Também há um botão **Desativar produto** na lista, para alterar a visibilidade sem precisar preencher o restante do cadastro. O produto fica fora da home, dos catálogos e dos shortcodes; seu link direto retorna página não encontrada (404), e as operações públicas ficam bloqueadas. O painel mantém produto, pedidos, estoque e entregas para administração e permite reativar depois.
+
+As telas de compra conferem a disponibilidade ao abrir ou voltar à página, incluindo conteúdo de shortcode servido de cache. O catálogo consulta os produtos disponíveis novamente. Após atualizar ou mudar a visibilidade, limpe o cache da home/CDN quando houver cache externo.
+
+### Excluir faixas de preço ou parcelamento
+
+Nas tabelas **Preço por data deste produto** e **Parcelamento por data deste produto**, use **Excluir faixa**. A confirmação remove somente a faixa escolhida naquele produto. Os botões de ativar/desativar continuam disponíveis para pausar sem excluir.
+
+Excluir uma faixa ativa faz as novas compras usarem as condições que restarem, incluindo preço normal e parcelamento padrão. A compra aberta exige nova confirmação quando a condição mudou. Pedidos já emitidos conservam os valores, nomes e limites registrados, mesmo depois de a faixa ser excluída.
 
 ### Formas de pagamento e parcelamento por data
 

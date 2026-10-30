@@ -101,6 +101,15 @@ final class Discounts
         return substr($date, 8, 2) . '/' . substr($date, 5, 2) . '/' . substr($date, 0, 4);
     }
 
+    public static function delete(int $product, int $id): void
+    {
+        global $wpdb;
+        if (Support::must($wpdb->delete(Support::table('descontos_data'), ['id' => $id, 'produto_id' => $product])) !== 1) {
+            throw new \InvalidArgumentException('Faixa de preço não encontrada neste produto.');
+        }
+        do_action('k8prod_discount_changed', $product);
+    }
+
     /** Cada preço promocional é pareado ao preço normal da mesma turma. */
     public static function catalog_prices(array $products): array
     {

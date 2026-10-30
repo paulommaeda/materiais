@@ -96,12 +96,12 @@ if ($legacy_dir) {
 $a=insert_product('Produto A');
 $b=insert_product('Produto B');
 foreach ([$a,$b] as $p) {
-    mutate('save_price',(int)$p->id,['turma'=>'5º Ano A','valor'=>'1.250,50']);
+    $wpdb->insert(S::table('valores_turma'),['produto_id'=>$p->id,'turma'=>'5º Ano A','valor'=>'1250.50']);
     mutate('save_coupon',(int)$p->id,['codigo'=>'BOLSA100','percentual'=>100,'uso_maximo'=>2]);
 }
-check(Service::price($a,'5º Ano A')===1250.50,'preço por turma e número brasileiro');
+check(Service::price($a,'5º Ano A')===100.0&&S::money('1.250,50')==='1250.50','preço normal do produto ignora valor antigo por turma e aceita número brasileiro');
 check(Service::price($a,'6º Ano')===100.0,'preço padrão do produto');
-check((int)$wpdb->get_var('SELECT COUNT(*) FROM '.S::table('valores_turma')." WHERE turma='5º Ano A'")>=2,'mesma turma aceita preços em produtos diferentes');
+check((int)$wpdb->get_var('SELECT COUNT(*) FROM '.S::table('valores_turma')." WHERE turma='5º Ano A'")>=2,'registros antigos por turma são preservados sem interferir no preço');
 check((int)$wpdb->get_var('SELECT COUNT(*) FROM '.S::table('cupons')." WHERE codigo='BOLSA100'")===2,'mesmo código de cupom em dois produtos');
 $order_a=Service::checkout($a,person(),'Cortesia','BOLSA100');
 $again=Service::checkout($a,person(),'Cortesia','BOLSA100');
