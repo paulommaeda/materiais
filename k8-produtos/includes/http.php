@@ -44,9 +44,10 @@ final class Http
                 }));
                 $html = [];
                 foreach ($items as $item) {
-                    $html[$item->id] = Discounts::render_price($item->catalog_price);
+                    $html[$item->id] = Storefront::price_html($item);
                 }
-                wp_send_json_success(['prices' => (object) $html, 'refresh_after' => Discounts::refresh_after(array_map('intval', array_column($items, 'id')))]);
+                $ids = array_map('intval', array_column($items, 'id'));
+                wp_send_json_success(['prices' => (object) $html, 'refresh_after' => min(Discounts::refresh_after($ids), PaymentTerms::refresh_after($ids))]);
             }
             $id = absint($data['produto_id'] ?? 0);
             $product = Support::product($id, true);
@@ -84,7 +85,7 @@ final class Http
             }
             if ($op === 'status') {
                 $order = Service::active($id, $person['ra']);
-                if ($order && $order->cobranca_id && (!$order->verificado_em || strtotime($order->verificado_em) < current_time('timestamp') - 60)) {
+                if ($order && ($order->cobranca_id || $order->link_pagamento_id) && (!$order->verificado_em || strtotime($order->verificado_em) < current_time('timestamp') - 60)) {
                     try {
                         $order = Service::sync_order($id, (int) $order->id);
                     } catch (\Throwable $e) {
@@ -145,11 +146,12 @@ final class Http
                 }
             }
             $classes = ProductClasses::input($data);
+            $payment_terms = PaymentTerms::input($data);
             $record = ['nome' => $name, 'descricao' => sanitize_textarea_field($data['descricao'] ?? ''),
                 'turmas_disponiveis' => wp_json_encode($classes),
                 'valor_padrao' => Support::text($data, 'valor_padrao') === '' ? null : Support::money($data['valor_padrao']),
                 'etapas' => $stages, 'permitir_negativo' => empty($data['permitir_negativo']) ? 0 : 1,
-                'vencimento_dias' => $days, 'ativo' => empty($data['ativo']) ? 0 : 1];
+                'vencimento_dias' => $days, 'ativo' => empty($data['ativo']) ? 0 : 1] + $payment_terms;
             $category = Support::text($data, 'categoria') ?: 'didatico';
             if (!isset(Storefront::categories()[$category])) {
                 throw new \InvalidArgumentException('Escolha uma categoria válida.');
@@ -173,6 +175,11 @@ final class Http
         if ($op === 'save_discount') {
             Discounts::save($id, $data);
             return ['redirect' => admin_url('admin.php?page=k8prod-products&produto_id=' . $id . '#descontos-data')];
+        } elseif ($op === 'save_payment_period') {
+            PaymentTerms::save($id, $data);
+            return ['redirect' => admin_url('admin.php?page=k8prod-products&produto_id=' . $id . '#parcelamento-data')];
+        } elseif ($op === 'toggle_payment_period') {
+            PaymentTerms::toggle($id, absint($data['id'] ?? 0));
         } elseif ($op === 'toggle_discount') {
             Discounts::toggle($id, absint($data['id'] ?? 0));
         } elseif ($op === 'save_price') {

@@ -1,5 +1,15 @@
 # Alterações
 
+## Plugin 2.5.0
+
+- Escolha de Pix, boleto e cartão de crédito no cadastro de cada produto, com validação no servidor e exibição somente das opções aceitas.
+- Limite padrão de 1 a 12 parcelas no cartão e faixas por data independentes por produto, com último dia inteiro e rejeição de sobreposição.
+- Catálogo e compra mostram o parcelamento vigente. Mudança de preço, métodos ou parcelas exige nova confirmação antes de gerar o pedido.
+- Novo cartão usa link K8 individual de valor fixo, não reutilizável, com os campos documentados `ParcelaFixa`/`ParcelaFixaQtd`; leitura de retorno confere as condições antes de redirecionar.
+- Pedido registra limite e período aplicados. Atualizar o produto não modifica condições de pedidos já emitidos, inclusive os cartões anteriores à atualização.
+- Consulta de link e cobrança para confirmar pagamento, integração com WP-Cron, conciliação de falhas e cancelamento com desativação de link e conferência de transações pendentes.
+- Guia de configuração e homologação em `docs/PAGAMENTO-POR-PRODUTO.md`.
+
 ## Plugin 2.4.0
 
 - Seleção explícita das turmas disponíveis no cadastro de cada produto; novos produtos exigem pelo menos uma turma.

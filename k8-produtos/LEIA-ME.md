@@ -1,4 +1,4 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.4.0
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.5.0
 
 Plugin único criado a partir dos cinco arquivos de Paulo Maeda. Reúne cadastro de produtos, página pública de compra, cobrança K8, cupons, estoque, entregas com assinatura e painel por produto. Não exige WooCommerce.
 
@@ -70,6 +70,16 @@ Os shortcodes antigos continuam reconhecidos:
 
 A identificação agora acontece no próprio shortcode. Parâmetros de URL com RA, turma, CPF ou valor não são usados para autorizar compras.
 
+## Formas de pagamento e parcelas por data
+
+No cadastro de cada produto, marque as formas aceitas: **Pix, boleto e cartão de crédito**. Escolha o limite padrão do cartão, de 1 a 12 parcelas, e salve. Na mesma tela, em **Parcelamento por data deste produto**, cadastre períodos com outro limite. Exemplo: 6x como padrão e até 10x até 30/11. A data final inclui o dia inteiro no fuso do site; períodos ativos do mesmo produto não podem se sobrepor.
+
+A compra e o catálogo mostram a condição vigente. Formas desabilitadas ficam ocultas e são rejeitadas pelo servidor. Se métodos ou parcelas mudarem com a tela aberta, o comprador precisa conferir e confirmar as condições atuais. Preço e parcelamento têm calendários próprios por produto; os pedidos emitidos conservam o valor, o método e o limite registrados.
+
+Novos cartões utilizam link K8 individual, de valor fixo e não reutilizável, com limite de parcelas próprio. O comprador escolhe a quantidade efetiva no checkout K8, que recebe os dados do cartão. O pedido só fica pago após conferir o link e a cobrança correspondente. Pix e boleto continuam à vista por cobrança avulsa.
+
+Na migração, os três métodos anteriores ficam habilitados e o padrão de **novos cartões é 1x**, até que você configure outro limite ou uma faixa no produto. Cartões emitidos anteriormente mantêm seu checkout original, sem limite retroativo. Homologue o novo fluxo no sandbox da conta K8 antes de habilitar vendas reais; o desenvolvimento usa respostas simuladas, sem cobrança real. O [guia completo](https://github.com/paulommaeda/materiais/blob/main/docs/PAGAMENTO-POR-PRODUTO.md) inclui configuração, conciliação e cancelamento.
+
 ## Turmas e preço por data
 
 No editor de cada produto, use **Turmas disponíveis para este produto** e **Preço por data deste produto**. Não existe preço que libere todas as turmas do site. Uma turma não selecionada não pode cotar nem criar nova compra, mesmo com preço antigo configurado. No formulário de preço por data, a opção “Turmas selecionadas neste produto” abrange somente a lista do produto aberto; você também pode escolher apenas uma dessas turmas.
@@ -118,7 +128,7 @@ Por padrão, produtos novos impedem saídas com saldo insuficiente. O produto le
 
 ## K8 e pagamentos
 
-O contrato foi mantido do cliente enviado: autenticação em `/token`, AES-128-CBC, busca/criação de cliente e cobrança avulsa em `/api/Cobranca`. Houve uma correção adicional: uma lista vazia de clientes passa a ser aceita, permitindo cadastrar um responsável novo.
+Para Pix e boleto, o contrato de cobrança avulsa foi mantido do cliente enviado: autenticação em `/token`, AES-128-CBC, busca/criação de cliente e cobrança avulsa em `/api/Cobranca`. Houve uma correção adicional: uma lista vazia de clientes passa a ser aceita, permitindo cadastrar um responsável novo.
 
 As credenciais podem ser mantidas nas opções já existentes ou definidas no `wp-config.php`:
 

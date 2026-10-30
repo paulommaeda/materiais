@@ -31,7 +31,8 @@ function classes_mutate($op, $product, array $data) {
 }
 function classes_product($name, array $classes, $price = '1000', $id = 0) {
     $result = classes_mutate('save_product', $id, ['nome'=>$name,'valor_padrao'=>$price,'turmas'=>$classes,
-        'ativo'=>1,'publicado'=>1,'etapas'=>1,'vencimento_dias'=>5,'categoria'=>'didatico']);
+        'ativo'=>1,'publicado'=>1,'etapas'=>1,'vencimento_dias'=>5,'categoria'=>'didatico',
+        'formas_pagamento'=>['Pix','Boleto','Cartao'],'cartao_parcelas'=>1]);
     return S::product($result['produto_id']);
 }
 function classes_person($ra, $class) {

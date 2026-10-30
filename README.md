@@ -5,7 +5,7 @@ Site WordPress com um plugin unificado e um tema próprio. Cadastro e importaç�
 ## Instalar
 
 1. Faça backup do WordPress e do banco antes de migrar os plugins anteriores.
-2. Baixe [k8-produtos-2.4.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.4.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
+2. Baixe [k8-produtos-2.5.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.5.0.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
 3. Baixe [bmt-educacional-1.0.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/bmt-educacional-1.0.0.zip), instale em **Aparência → Temas → Adicionar tema → Enviar tema** e ative **BMT Educacional**.
 4. Abra **K8 Produtos → Alunos**. A base anterior `lista_alunos_v4` e os vínculos de `sba_guardians` são reaproveitados. Importe o CSV quando precisar atualizar o cadastro.
 5. Em **K8 Produtos → Produtos e preços**, abra ou crie um produto, selecione suas turmas e cadastre categoria, descrição, imagem opcional e preço normal ou valores por turma. Marque **Exibir este produto na home e no catálogo**.
@@ -41,6 +41,14 @@ Em **K8 Produtos → Produtos e preços**, abra o produto que deseja configurar.
 Uma turma não selecionada não pode gerar nova compra, mesmo que exista um preço ou desconto antigo para ela. O catálogo calcula o menor preço somente entre as turmas liberadas com preço, e o dashboard usa essa seleção nas pendências e na adesão. Pedidos já emitidos permanecem acessíveis para acompanhamento e entrega, com seus valores históricos.
 
 Turmas novas importadas pelo painel ou pela API aparecem como opções para seleção; não são liberadas automaticamente nos produtos. Na atualização da versão anterior, os produtos com preço normal recebem uma seleção explícita das turmas atuais da base e das turmas com preço próprio; produtos sem preço normal recebem somente suas turmas com preço. Revise essa seleção em cada produto. Se não houver turmas conhecidas nem preços por turma, o produto aguarda a seleção antes de aparecer no catálogo.
+
+### Formas de pagamento e parcelamento por data
+
+No cadastro do produto, marque **Pix**, **Boleto** e/ou **Cartão de crédito** e escolha o limite de parcelas fora dos períodos especiais. Depois de salvar, use **Parcelamento por data deste produto** para definir faixas de 1 a 12 parcelas com início e término. Exemplo: padrão de 6x e faixa de 10x até 30/11. Os períodos ativos do mesmo produto não podem se sobrepor; o último dia é incluído por inteiro no fuso do site.
+
+O catálogo e a compra mostram o parcelamento vigente. O servidor rejeita métodos desabilitados e condições antigas antes de gerar o pagamento. Cada pedido conserva seu limite registrado. Novos cartões usam um link individual K8 com limite próprio de parcelas; Pix e boleto mantêm a cobrança avulsa.
+
+Na atualização, produtos anteriores continuam com as três formas habilitadas, e novos cartões começam com padrão de **1x** até você ajustar o produto. Pedidos existentes conservam o fluxo e as condições anteriores. Veja o [guia de configuração, integração e homologação](docs/PAGAMENTO-POR-PRODUTO.md).
 
 ### Preço por data
 
@@ -96,6 +104,6 @@ WordPress 6.2+, PHP 7.4+ com OpenSSL, MySQL/MariaDB com InnoDB e GET_LOCK, e per
 
 Confira o [guia do plugin](k8-produtos/LEIA-ME.md), o [histórico](CHANGELOG.md) e o [relatório de validação](docs/VALIDACAO.md). Os testes usam bancos descartáveis cujo nome termina em `_test`; nunca execute as fixtures em produção.
 
-O contrato K8 foi mantido do cliente original. Consulta, cancelamento, sandbox e URL do checkout precisam ser confirmados na documentação da conta K8. Testes com respostas simuladas não substituem essa homologação.
+O contrato de cobrança avulsa K8 foi mantido para Pix e boleto. O cartão novo usa o contrato documentado de links de pagamento com limite de parcelas por pedido. Consulta, cancelamento, sandbox e URL do checkout precisam ser confirmados na documentação da conta K8. Testes com respostas simuladas não substituem essa homologação.
 
 Referências do WordPress: [Update URI de plugins](https://developer.wordpress.org/reference/hooks/update_plugins_hostname/), [Update URI de temas](https://developer.wordpress.org/reference/hooks/update_themes_hostname/) e [tabelas com dbDelta](https://developer.wordpress.org/plugins/creating-tables-with-plugins/).

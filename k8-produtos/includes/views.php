@@ -91,7 +91,8 @@ final class Views
                 <div data-k8-summary></div>
                 <form class="k8-form k8-inline" data-k8-coupon><label>Cupom de desconto<input name="cupom" maxlength="50" autocomplete="off" placeholder="Opcional"></label><button type="submit" class="k8-btn secondary">Aplicar cupom</button></form>
                 <p class="k8-price" data-k8-price></p>
-                <div class="k8-methods"><button class="k8-btn" data-method="Pix" type="button">Pagar com Pix</button><button class="k8-btn secondary" data-method="Boleto" type="button">Boleto</button><button class="k8-btn secondary" data-method="Cartao" type="button">Cartão de crédito</button></div>
+                <p class="k8-muted" data-k8-payment-terms hidden></p>
+                <div class="k8-methods"><button class="k8-btn" data-method="Pix" type="button" hidden>Pagar com Pix</button><button class="k8-btn secondary" data-method="Boleto" type="button" hidden>Boleto</button><button class="k8-btn secondary" data-method="Cartao" type="button" hidden>Cartão de crédito</button></div>
                 <button class="k8-btn" data-method="Cortesia" type="button" hidden>Finalizar sem custo</button>
             </div>
             <div data-k8-status aria-live="polite"></div>
@@ -330,21 +331,23 @@ final class Views
         self::table_start(['Pedido', 'Aluno', 'Responsável', 'Pagamento', 'Ações']);
         foreach ($rows as $o) {
             echo '<tr><td>#' . (int) $o->id . '<br><small>' . esc_html($o->criado_em) . '</small></td><td><strong>' . esc_html($o->nome_aluno) . '</strong><br>RA ' . esc_html($o->ra) . ' · ' . esc_html($o->turma) . '</td><td>' . esc_html($o->nome_resp) . '</td><td>' . esc_html(self::currency($o->valor)) . '<br>' . esc_html($o->metodo) . '<br><span class="k8-badge">' . esc_html($o->status_pagamento ?: $o->status) . '</span></td><td>';
+            if ($o->cartao_parcelas_max) echo '<p class="k8-muted">Cartão: até ' . (int) $o->cartao_parcelas_max . ' parcela(s).</p>';
             if ($o->erro_mensagem) {
-                echo '<details><summary>Detalhes da tentativa</summary><p>' . esc_html($o->erro_mensagem) . '</p><p>Referência na K8: K8P-' . (int) $o->id . '</p></details>';
+                echo '<details><summary>Detalhes da tentativa</summary><p>' . esc_html($o->erro_mensagem) . '</p><p>Referência na K8: ' . esc_html(CardPayments::is_link($o) ? CardPayments::reference($o) : 'K8P-' . (int) $o->id) . '</p></details>';
             }
-            if ($o->cobranca_id && !in_array($o->status_pagamento, ['Paga', 'Cancelada'], true)) {
-                echo '<a href="' . esc_url(Client::checkout($o->cobranca_id)) . '" target="_blank" rel="noopener">Abrir checkout K8</a>';
+            if (($o->cobranca_id || $o->link_pagamento_id) && !in_array($o->status_pagamento, ['Paga', 'Cancelada'], true)) {
+                $checkout_url = Service::public_order($o)['redirect'];
+                if ($checkout_url) echo '<a href="' . esc_url($checkout_url) . '" target="_blank" rel="noopener">Abrir checkout K8</a>';
                 self::form('sync', (int) $p->id);
                 echo '<input type="hidden" name="pedido_id" value="' . (int) $o->id . '">';
                 self::button('Consultar este pedido');
                 echo '</form>';
             }
-            if ($o->status === 'verificacao' && !$o->cobranca_id) {
-                echo '<details><summary>Vincular cobrança existente</summary>';
+            if ($o->status === 'verificacao' && !$o->cobranca_id && !$o->link_pagamento_id) {
+                echo '<details><summary>' . (CardPayments::is_link($o) ? 'Vincular link de cartão existente' : 'Vincular cobrança existente') . '</summary>';
                 self::form('reconcile', (int) $p->id);
                 echo '<input type="hidden" name="pedido_id" value="' . (int) $o->id . '">';
-                self::field('cobranca_id', 'ID localizado na K8', '', 'text', 'required');
+                self::field('cobranca_id', CardPayments::is_link($o) ? 'ID do link localizado na K8' : 'ID localizado na K8', '', 'text', 'required');
                 self::button('Conferir e vincular');
                 echo '</form></details>';
             }
@@ -353,8 +356,8 @@ final class Views
                 self::form('cancel', (int) $p->id);
                 echo '<input type="hidden" name="pedido_id" value="' . (int) $o->id . '">';
                 self::field('motivo', 'Motivo do cancelamento', '', 'text', 'required minlength="5"');
-                if ($o->status === 'verificacao' && !$o->cobranca_id) {
-                    echo '<label class="k8-check"><input type="checkbox" name="confirmar_sem_cobranca" value="1" required>Conferi no painel K8 e não há cobrança ativa para esta tentativa.</label>';
+                if ($o->status === 'verificacao' && !$o->cobranca_id && !$o->link_pagamento_id) {
+                    echo '<label class="k8-check"><input type="checkbox" name="confirmar_sem_cobranca" value="1" required>Conferi no painel K8 e não há link nem cobrança ativa para esta tentativa.</label>';
                 }
                 self::button('Confirmar cancelamento');
                 echo '</form></details>';
@@ -541,7 +544,8 @@ final class Views
         echo '</ul></section><div class="k8-product-editor"><section class="k8-card">';
         $id = absint($_GET['produto_id'] ?? 0);
         $p = (object) ['nome' => '', 'descricao' => '', 'valor_padrao' => null, 'etapas' => 1, 'permitir_negativo' => 0, 'vencimento_dias' => 5, 'ativo' => 1,
-            'categoria' => 'didatico', 'imagem_id' => 0, 'publicado' => 1, 'ordem' => 0, 'turmas_disponiveis' => '[]'];
+            'categoria' => 'didatico', 'imagem_id' => 0, 'publicado' => 1, 'ordem' => 0, 'turmas_disponiveis' => '[]',
+            'formas_pagamento' => wp_json_encode(array_keys(PaymentTerms::labels())), 'cartao_parcelas' => 1];
         if ($id) {
             try {
                 $p = Support::product($id);
@@ -568,6 +572,7 @@ final class Views
         self::classes_form($p);
         self::field('valor_padrao', 'Preço normal deste produto (R$)', $p->valor_padrao ?? '', 'text', 'inputmode="decimal"');
         echo '<p class="k8-muted">Este preço vale somente para as turmas selecionadas acima. Se ficar vazio, cadastre um preço específico para cada turma deste produto.</p>';
+        self::payment_settings($p);
         echo '<label>Modelo de entrega<select name="etapas"><option value="1" ' . selected($p->etapas, 1, false) . '>Entrega única</option><option value="2" ' . selected($p->etapas, 2, false) . '>Duas etapas / semestres</option></select></label>';
         self::field('vencimento_dias', 'Dias para vencimento da cobrança', $p->vencimento_dias, 'number', 'min="1" max="365" required');
         echo '<label class="k8-check"><input type="checkbox" name="permitir_negativo" value="1" ' . checked($p->permitir_negativo, 1, false) . '>Permitir saídas com estoque negativo</label><label class="k8-check"><input type="checkbox" name="ativo" value="1" ' . checked($p->ativo, 1, false) . '>Produto ativo para novas compras</label>';
@@ -575,6 +580,7 @@ final class Views
         echo '</form></section>';
         if ($id) {
             self::discounts_form($id);
+            self::payment_periods_form($id);
             echo '<section class="k8-card"><h2>Publicar e administrar este produto</h2><p><a target="_blank" rel="noopener" href="' . esc_url(Storefront::url($id)) . '">Abrir página de compra deste produto ↗</a></p><p>Fluxo de compra: <code>[k8_produto id="' . $id . '"]</code></p><p>Painel iniciando neste produto: <code>[k8_dashboard produto="' . $id . '"]</code></p></section><section class="k8-card"><h2>Preço específico por turma deste produto</h2><p class="k8-muted">Opcional: o preço específico substitui o preço normal para esta turma. Ele só vale se a turma continuar selecionada no cadastro acima.</p>';
             self::form('save_price', $id, 'k8-inline');
             self::class_select($p, 'turma', 'Turma deste produto');
@@ -593,7 +599,7 @@ final class Views
             self::table_end();
             echo '</section>';
         } else {
-            echo '<section class="k8-card"><h2>Preço por data deste produto</h2><p>Salve o produto com suas turmas para cadastrar os preços promocionais e as datas nesta mesma tela.</p></section>';
+            echo '<section class="k8-card"><h2>Preço e parcelamento por data deste produto</h2><p>Salve o produto com suas turmas e formas de pagamento para cadastrar os preços promocionais e os períodos de parcelamento nesta mesma tela.</p></section>';
         }
         echo '</div></div></div>';
     }
@@ -606,6 +612,60 @@ final class Views
             echo '<label class="k8-check"><input type="checkbox" name="turmas[]" value="' . esc_attr($class) . '" ' . checked(in_array($class, $selected, true), true, false) . '>' . esc_html($class) . '</label>';
         }
         echo '</div><label>Outras turmas deste produto (uma por linha)<textarea name="turmas_adicionais" rows="2" placeholder="Ex.: 5º Ano A"></textarea></label><p class="k8-muted">Use este campo se a turma ainda não estiver na lista. Cada turma informada será selecionada neste produto. Turmas novas importadas depois precisam ser selecionadas nos produtos em que poderão comprar.</p></fieldset>';
+    }
+
+    private static function installments_select(string $name, string $label, int $selected): void
+    {
+        echo '<label>' . esc_html($label) . '<select name="' . esc_attr($name) . '" required>';
+        for ($n = 1; $n <= 12; $n++) {
+            echo '<option value="' . $n . '" ' . selected($n, $selected, false) . '>' . ($n === 1 ? '1x — à vista' : 'Até ' . $n . 'x no cartão') . '</option>';
+        }
+        echo '</select></label>';
+    }
+
+    private static function payment_settings(object $product): void
+    {
+        $methods = PaymentTerms::methods($product);
+        echo '<fieldset class="k8-product-classes"><legend>Formas de pagamento deste produto</legend><p>Marque as opções que o comprador poderá usar.</p><div class="k8-class-options">';
+        foreach (PaymentTerms::labels() as $key => $label) {
+            echo '<label class="k8-check"><input type="checkbox" name="formas_pagamento[]" value="' . esc_attr($key) . '" ' . checked(in_array($key, $methods, true), true, false) . '>' . esc_html($label) . '</label>';
+        }
+        echo '</div>';
+        self::installments_select('cartao_parcelas', 'Parcelamento no cartão fora dos períodos especiais', (int) ($product->cartao_parcelas ?? 1));
+        echo '<p class="k8-muted">Este é o máximo de parcelas quando não houver uma faixa por data em vigor. Só se aplica quando o cartão está habilitado. Pix e boleto são pagos à vista; a quantidade efetiva de parcelas é escolhida no checkout da K8 dentro do limite.</p></fieldset>';
+    }
+
+    private static function payment_periods_form(int $product): void
+    {
+        global $wpdb;
+        $p = Support::product($product);
+        $table = Support::table('parcelamento_data');
+        $edit = absint($_GET['k8_installment'] ?? 0);
+        $rule = $edit ? $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d AND produto_id = %d", $edit, $product)) : null;
+        $rule = $rule ?: (object) ['id' => 0, 'titulo' => '', 'inicio' => '', 'fim' => '', 'parcelas' => 1];
+        echo '<section class="k8-card" id="parcelamento-data"><h2>Parcelamento por data deste produto</h2><p><strong>' . esc_html($p->nome) . '</strong> · Defina o máximo de parcelas no cartão em cada período. Exemplo: até 10x até uma data e até 6x depois, usando 6x como limite fora das faixas.</p><p class="k8-muted">A data final inclui o dia inteiro no fuso ' . esc_html(wp_timezone_string()) . '. Períodos ativos não podem se sobrepor. Preço e parcelamento têm calendários próprios. Pedidos já emitidos mantêm as condições registradas.</p>';
+        if (!in_array('Cartao', PaymentTerms::methods($p), true)) echo '<p class="k8-notice">O cartão está desabilitado neste produto. As faixas terão efeito quando você habilitar essa forma de pagamento no cadastro acima.</p>';
+        self::form('save_payment_period', $product, 'k8-form-grid');
+        echo '<input type="hidden" name="id" value="' . (int) $rule->id . '">';
+        self::field('titulo', 'Nome do período', $rule->titulo, 'text', 'required maxlength="160" placeholder="Ex.: Compra antecipada"');
+        self::installments_select('parcelas', 'Máximo de parcelas no cartão', (int) $rule->parcelas);
+        self::field('inicio', 'Início (vazio = imediato)', $rule->inicio, 'date');
+        self::field('fim', 'Válido até (inclusive)', $rule->fim, 'date', 'required');
+        self::button($rule->id ? 'Atualizar parcelamento' : 'Cadastrar parcelamento');
+        echo '</form>';
+        if ($rule->id) echo '<p><a href="' . esc_url(admin_url('admin.php?page=k8prod-products&produto_id=' . $product . '#parcelamento-data')) . '">Cadastrar outro período</a></p>';
+        self::table_start(['Nome', 'Parcelas no cartão', 'Período', 'Situação', 'Ações']);
+        $today = Discounts::today();
+        foreach ($wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE produto_id = %d ORDER BY fim,id", $product)) as $row) {
+            $status = !$row->ativo ? 'Inativo' : ($row->fim < $today ? 'Encerrado' : ($row->inicio && $row->inicio > $today ? 'Agendado' : 'Em vigor'));
+            echo '<tr><td>' . esc_html($row->titulo) . '</td><td>Até ' . (int) $row->parcelas . 'x</td><td>' . esc_html(($row->inicio ? Discounts::date_label($row->inicio) : 'Imediato') . ' até ' . Discounts::date_label($row->fim)) . '</td><td>' . esc_html($status) . '</td><td><a href="' . esc_url(add_query_arg(['page' => 'k8prod-products', 'produto_id' => $product, 'k8_installment' => $row->id], admin_url('admin.php')) . '#parcelamento-data') . '">Editar</a>';
+            self::form('toggle_payment_period', $product);
+            echo '<input type="hidden" name="id" value="' . (int) $row->id . '">';
+            self::button($row->ativo ? 'Desativar' : 'Ativar');
+            echo '</form></td></tr>';
+        }
+        self::table_end();
+        echo '</section>';
     }
 
     private static function class_select(object $product, string $name, string $label, string $value = '', bool $optional = false): void

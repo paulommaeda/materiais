@@ -105,6 +105,51 @@ final class Client
         return isset($data[0]) && is_array($data[0]) ? $data[0] : $data;
     }
 
+    public function create_card_link(object $order, object $product): array
+    {
+        return $this->request('POST', '/api/LinkPagamento', [
+            'Nome' => $product->nome . ' — Pedido #' . $order->id,
+            'Observacoes' => CardPayments::reference($order), 'TipoValor' => 'fixo', 'Valor' => (float) $order->valor,
+            'FormasPagamento' => 'Cartao', 'Ativo' => true, 'LinkReutilizavel' => false,
+            'ParcelaFixa' => true, 'ParcelaFixaQtd' => (int) $order->cartao_parcelas_max,
+            'DataExpiracao' => (new \DateTimeImmutable('now', wp_timezone()))->modify('+' . (int) $product->vencimento_dias . ' days')->format('Y-m-d\TH:i:sP'),
+        ]);
+    }
+
+    public function card_link(string $id): array
+    {
+        return $this->request('GET', '/api/LinkPagamento/' . rawurlencode($id));
+    }
+
+    public function card_charge(string $id): array
+    {
+        return $this->request('GET', '/api/Cobranca/' . rawurlencode($id));
+    }
+
+    public function disable_card_link(array $link): void
+    {
+        $record = array_intersect_key($link, array_flip(['Id', 'Nome', 'Observacoes', 'TipoValor', 'Valor', 'FormasPagamento',
+            'LinkReutilizavel', 'ParcelaFixa', 'ParcelaFixaQtd', 'DataExpiracao']));
+        $result = $this->request('PUT', '/api/LinkPagamento', $record + ['Ativo' => false]);
+        if (isset($result['Retorno']) && $result['Retorno'] !== 'OK') throw new \RuntimeException('A K8 não confirmou a desativação do link.');
+    }
+
+    public static function card_checkout(array $link): string
+    {
+        $url = isset($link['LinkUrl']) && is_string($link['LinkUrl']) ? $link['LinkUrl'] : '';
+        $parts = wp_parse_url($url);
+        $allowed = ['pagamentos.meuk8.com.br', 'sandbox.meuk8.com.br', 'pagamentos.k8bank.com.br'];
+        foreach (['k8prod_checkout_production', 'k8prod_checkout_sandbox'] as $setting) {
+            $host = wp_parse_url((string) get_option($setting, ''), PHP_URL_HOST);
+            if ($host) $allowed[] = strtolower($host);
+        }
+        if (!$parts || ($parts['scheme'] ?? '') !== 'https' || !in_array(strtolower($parts['host'] ?? ''), $allowed, true) ||
+            isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])) {
+            throw new \RuntimeException('A K8 não retornou um endereço de checkout válido para o cartão. Consulte o pedido na secretaria.');
+        }
+        return esc_url_raw($url);
+    }
+
     public function cancel(string $id): array
     {
         $path = (string) get_option('k8prod_cancel_path', '/api/Cobranca/{id}');

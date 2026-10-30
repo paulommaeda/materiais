@@ -53,6 +53,8 @@ final class Schema
                     ordem int NOT NULL DEFAULT 0,
                     valor_padrao decimal(10,2) DEFAULT NULL,
                     turmas_disponiveis longtext DEFAULT NULL,
+                    formas_pagamento varchar(100) DEFAULT NULL,
+                    cartao_parcelas tinyint(3) unsigned NOT NULL DEFAULT 1,
                     etapas tinyint(1) NOT NULL DEFAULT 1,
                     permitir_negativo tinyint(1) NOT NULL DEFAULT 0,
                     vencimento_dias int NOT NULL DEFAULT 5,
@@ -84,6 +86,13 @@ final class Schema
                     cupom_reservado tinyint(1) NOT NULL DEFAULT 0,
                     origem varchar(30) NOT NULL DEFAULT 'k8',
                     metodo varchar(20) NOT NULL,
+                    cartao_parcelas_max tinyint(3) unsigned DEFAULT NULL,
+                    parcelamento_regra_id mediumint(9) DEFAULT NULL,
+                    parcelamento_regra_titulo varchar(160) DEFAULT NULL,
+                    parcelamento_regra_fim date DEFAULT NULL,
+                    pagamento_referencia varchar(64) DEFAULT NULL,
+                    link_pagamento_id varchar(50) DEFAULT NULL,
+                    checkout_url text DEFAULT NULL,
                     cliente_id varchar(50) DEFAULT NULL,
                     cobranca_id varchar(50) DEFAULT NULL,
                     status varchar(30) NOT NULL DEFAULT 'iniciado',
@@ -101,6 +110,7 @@ final class Schema
                     criado_em datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY  (id),
                     UNIQUE KEY active_key (active_key),
+                    UNIQUE KEY link_pagamento_id (link_pagamento_id),
                     KEY produto_ra (produto_id,ra),
                     KEY produto_status (produto_id,status_pagamento),
                     KEY cobranca_id (cobranca_id)",
@@ -113,6 +123,16 @@ final class Schema
                     inicio date DEFAULT NULL,
                     fim date NOT NULL,
                     acumular_cupom tinyint(1) NOT NULL DEFAULT 0,
+                    ativo tinyint(1) NOT NULL DEFAULT 1,
+                    criado_em datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY  (id),
+                    KEY produto_periodo (produto_id,ativo,fim)",
+                'parcelamento_data' => "id mediumint(9) NOT NULL AUTO_INCREMENT,
+                    produto_id bigint(20) unsigned NOT NULL,
+                    titulo varchar(160) NOT NULL,
+                    inicio date DEFAULT NULL,
+                    fim date NOT NULL,
+                    parcelas tinyint(3) unsigned NOT NULL,
                     ativo tinyint(1) NOT NULL DEFAULT 1,
                     criado_em datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY  (id),
@@ -221,6 +241,7 @@ final class Schema
             }
             StudentImport::install();
             ProductClasses::migrate();
+            PaymentTerms::migrate();
             update_option('k8prod_schema', K8PROD_VERSION, false);
         });
     }

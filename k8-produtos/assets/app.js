@@ -172,6 +172,16 @@
       price.append(node('strong', money(quote.valor)));
       if (quote.promocao_ate) price.append(node('span', `Preço com desconto até ${quote.promocao_ate}`, 'k8-promo-until'));
       if (quote.cupom) price.append(node('span', `Cupom ${quote.cupom}: ${quote.percentual}%`, 'k8-promo-until'));
+      const allowed = quote.formas_pagamento || [];
+      root.querySelectorAll('.k8-methods [data-method]').forEach(button => {
+        button.hidden = quote.valor <= 0 || !allowed.includes(button.dataset.method);
+        if (button.dataset.method === 'Cartao') button.textContent = quote.parcelas_cartao_max > 1 ? `Cartão de crédito — até ${quote.parcelas_cartao_max}x` : 'Cartão de crédito — à vista';
+      });
+      const terms = root.querySelector('[data-k8-payment-terms]');
+      if (terms) {
+        terms.hidden = quote.valor <= 0 || !allowed.includes('Cartao');
+        terms.textContent = terms.hidden ? '' : `Cartão: ${quote.parcelas_cartao_max > 1 ? `até ${quote.parcelas_cartao_max} parcelas` : 'pagamento à vista'}${quote.parcelamento_ate ? ` até ${quote.parcelamento_ate}` : ''}. Escolha as parcelas no checkout da K8.`;
+      }
       root.querySelector('.k8-methods').hidden = quote.valor <= 0;
       root.querySelector('[data-method=Cortesia]').hidden = quote.valor > 0;
       clearTimeout(priceTimer);
@@ -179,7 +189,7 @@
         if (checkout.hidden || document.hidden || !state.token || checkout.getAttribute('aria-busy') === 'true') return;
         try {
           const fresh = await request('quote', {cupom: state.coupon});
-          if (fresh.chave_preco !== state.priceKey) notice(root, 'O preço foi atualizado. Confira o valor antes de confirmar.', true);
+          if (fresh.chave_preco !== state.priceKey) notice(root, 'O preço ou as condições de pagamento foram atualizados. Confira antes de confirmar.', true);
           state.coupon = fresh.cupom;
           showPrice(fresh);
         } catch (error) { notice(root, error.message); }
@@ -191,6 +201,7 @@
       const card = node('div', undefined, 'k8-card');
       card.append(node('h3', order.pagamento === 'Paga' ? 'Pagamento confirmado' : order.status === 'verificacao' || order.status === 'iniciado' ? 'Pedido em conferência' : 'Aguardando pagamento'));
       card.append(node('p', `Pedido #${order.id} · ${money(order.valor)} · ${order.metodo}`));
+      if (order.parcelas_cartao_max) card.append(node('p', `Cartão: limite de ${order.parcelas_cartao_max} parcela(s) registrado neste pedido.`, 'k8-muted'));
       if (order.valor_original > order.valor) {
         const original = node('p', 'Valor original: ', 'k8-muted');
         original.append(node('del', money(order.valor_original)));
@@ -239,7 +250,7 @@
       if (document.hidden || checkout.hidden || !state.token || checkout.getAttribute('aria-busy') === 'true') return;
       try {
         const fresh = await request('quote', {cupom: state.coupon});
-        if (fresh.chave_preco !== state.priceKey) notice(root, 'O preço foi atualizado. Confira o valor antes de confirmar.', true);
+        if (fresh.chave_preco !== state.priceKey) notice(root, 'O preço ou as condições de pagamento foram atualizados. Confira antes de confirmar.', true);
         state.coupon = fresh.cupom;
         showPrice(fresh);
       } catch (error) { notice(root, error.message); }

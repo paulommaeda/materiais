@@ -1,4 +1,24 @@
-# Validação — versão 2.4.0 — 29/10/2026
+# Validação — versão 2.5.0 — 30/10/2026
+
+Ambiente local descartável: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151. Nenhum acesso ao WordPress de produção.
+
+- **245 verificações de integração aprovadas:** 55 novas de formas de pagamento/parcelamento e as 190 verificações anteriores do núcleo, alunos, catálogo, atualização, descontos e turmas por produto.
+- Formas aceitas independentes por produto, quantidade de parcelas válida, início/fim inclusive no fuso do site, retorno ao padrão, rejeição de datas inválidas e de faixas sobrepostas, incluindo reativação de faixa conflitante.
+- Cotação associa preço com desconto, métodos habilitados e limite atual. Alterar apenas parcelas já invalida a cotação; método desabilitado ou cotação antiga não deixa pedido parcial nem inicia chamada financeira.
+- Mock K8 decodifica o corpo AES para conferir `FormasPagamento=Cartao`, valor com desconto, `TipoValor=fixo`, `LinkReutilizavel=false`, `ParcelaFixa=true` e `ParcelaFixaQtd` vigente. GET de retorno também é comparado ao pedido antes do redirecionamento.
+- Confirmação do cartão exige link correspondente e cobrança paga com valor correto. Testes cobrem URL inesperada, link de outro pedido, limite divergente, falha após POST, preservação do ID retornado, conciliação sem repetir criação e sincronização em lote sem cobrança inicialmente vinculada.
+- Cancelamento desativa link remoto; transação pendente mantém o pedido ativo até conferência. Pedido pago preserva a proteção de reembolso e o histórico. Repetir a migração conserva limites registrados.
+- Navegador: cadastro de produto com Pix/cartão e outro somente com boleto; inclusão de preço promocional e período de 10x; catálogo e compra respeitam as formas e os limites de cada produto.
+- Com a compra aberta, redução de 10x para 6x rejeita a tentativa antiga. O próximo clique envia R$ 800 e limite de 6x à K8 simulada; o retorno confirma o pagamento e conserva o limite registrado. Encerrar o período devolve novas compras e catálogo ao padrão de 3x.
+- Atualizador nativo 2.4.0 → 2.5.0 conferiu o SHA-256 do pacote e preservou pedido pago, aluno e checkout de cartão anterior. As novas formas e faixas ficaram disponíveis após a atualização.
+- Compatibilidade no navegador com HTML sem o novo bloco informativo de parcelas, mantendo as opções de pagamento funcionais e sem erros.
+- Inspeção visual do editor e compra em 1440 px e 390 px, sem transbordamento da página ou erros JavaScript.
+
+Contrato conferido nas referências e Swagger oficiais K8 de produção/sandbox em 30/10/2026. Todos os registros e pagamentos de teste são sintéticos; nenhum cartão foi coletado e nenhuma cobrança real foi enviada. A homologação da nova rota com as credenciais, permissões e checkout da conta K8 permanece a cargo do administrador antes de liberar pagamentos reais.
+
+---
+
+## Histórico da validação — versão 2.4.0 — 29/10/2026
 
 Ambiente local descartável: WordPress 7.1.4, PHP 8.3.6, MariaDB 10.11.14 e Chromium headless 151. Sem acesso ao WordPress de produção.
 
