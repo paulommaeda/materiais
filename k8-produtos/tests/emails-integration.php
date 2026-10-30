@@ -258,14 +258,28 @@ $cron_count = 0;
 foreach (_get_cron_array() as $hooks) if (isset($hooks['k8prod_emails'])) $cron_count += count($hooks['k8prod_emails']);
 mail_check($cron_count === 1, 'registro repetido não duplica cron da fila');
 
-// Exercita permissões, nonce e contexto das rotas AJAX sem encerrar o processo CLI.
-define('DOING_AJAX', true);
-class MailAjaxExit extends RuntimeException {}
-add_filter('wp_die_ajax_handler', static function () { return static function () { throw new MailAjaxExit(); }; });
+// Exercita nonce, contexto, permissões e a resposta real das rotas em processos isolados.
 function mail_ajax($public, array $data) {
-    $_POST = $data; $_REQUEST = $data; ob_start();
-    try { if ($public) Http::public_request(); else Http::manage_request(); } catch (MailAjaxExit $e) {}
-    return json_decode(ob_get_clean(), true);
+    $runner = <<<'PHP'
+define('DOING_AJAX', true);
+require getenv('K8PROD_WP_LOAD');
+$input = json_decode(stream_get_contents(STDIN), true);
+wp_set_current_user((int) $input['user']);
+$_POST = wp_slash($input['data']); $_REQUEST = $_POST;
+$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+if ($input['public']) \K8Produtos\Http::public_request();
+else \K8Produtos\Http::manage_request();
+PHP;
+    $process = proc_open([PHP_BINARY, '-d', 'display_errors=0', '-r', $runner], [
+        0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w'],
+    ], $pipes);
+    if (!is_resource($process)) throw new RuntimeException('Não foi possível iniciar a fixture AJAX.');
+    fwrite($pipes[0], wp_json_encode(['public' => $public, 'data' => $data, 'user' => get_current_user_id()]));
+    fclose($pipes[0]); $output = stream_get_contents($pipes[1]); $error = stream_get_contents($pipes[2]);
+    fclose($pipes[1]); fclose($pipes[2]); $status = proc_close($process);
+    $result = json_decode($output, true);
+    if ($status !== 0 || !is_array($result)) throw new RuntimeException('Resposta AJAX inválida: ' . $error . $output);
+    return $result;
 }
 $rpc_person = mail_person('RPC'); $token = Students::issue((int) $a->id, $rpc_person);
 $nonce = wp_create_nonce('k8prod_public'); $rpc = ['op' => 'save_cart', 'produto_id' => $a->id, 'nonce' => $nonce, 'token' => $token, 'email_responsavel' => 'rpc@example.invalid', 'lembrete_email' => '1'];

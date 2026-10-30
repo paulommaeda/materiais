@@ -372,6 +372,8 @@
       clearTimeout(contactTimer);
       if (emailInput) emailInput.value = '';
       if (reminderInput) reminderInput.checked = false;
+      const emailNotice = root.querySelector('[data-k8-email-state]');
+      if (emailNotice) emailNotice.textContent = '';
       saveSession();
       const summary = root.querySelector('[data-k8-summary]');
       summary.replaceChildren(node('h3', student.nome_aluno), node('p', `Turma: ${student.turma} · Responsável: ${student.responsavel}`));
