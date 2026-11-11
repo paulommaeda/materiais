@@ -1,12 +1,12 @@
 {
   "name": "K8 Produtos, Alunos, Cobranças e Entregas",
   "slug": "k8-produtos",
-  "version": "2.8.3",
+  "version": "2.8.4",
   "requires": "6.2",
   "requires_php": "7.4",
   "tested": "7.1.4",
-  "package": "https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.8.3.zip",
-  "sha256": "23d71205ca3380581f9ef1c24087196b7ef0f6e96f0911a727297b878396e28e",
+  "package": "https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.8.4.zip",
+  "sha256": "bc2ee30dc02bcfb2da11e432131f531f37b279e2ae68ddabd49966a94f634e81",
   "description": "<p>Cartão, Pix e boleto pelo K8 PAY com consulta por ID, confirmação e retorno; histórico COB preservado. Catálogo, alunos, cupons, estoque, entregas e e-mails por produto.</p>",
-  "changelog": "<p>Versão 2.8.3. Consulte CHANGELOG.md no repositório para as alterações.</p>"
+  "changelog": "<p>Versão 2.8.4. Consulte CHANGELOG.md no repositório para as alterações.</p>"
 }

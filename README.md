@@ -4,16 +4,16 @@ Site WordPress com um plugin unificado e um tema próprio. Cadastro e importaç�
 
 ## Pagamentos PAY e atualização pelo WordPress
 
-A versão 2.8.3 reúne cartão, Pix e boleto pelo checkout hospedado K8 PAY, com credenciais próprias por ambiente, consulta por identificador, confirmação pelo servidor e página de retorno. Os pedidos antigos mantêm seu provedor COB e suas condições registradas. A instalação preserva o provedor atual até o administrador escolher PAY nas configurações. [Guia de migração](k8-produtos/MIGRACAO-PAY.md).
+A versão 2.8.4 reúne cartão, Pix e boleto pelo checkout hospedado K8 PAY, com credenciais próprias por ambiente, consulta por identificador, confirmação pelo servidor e página de retorno. Os pedidos antigos mantêm seu provedor COB e suas condições registradas. A instalação preserva o provedor atual até o administrador escolher PAY nas configurações. [Guia de migração](k8-produtos/MIGRACAO-PAY.md).
 
-Se o cartão já foi pago e a referência não é localizada, preserve o pedido. Após atualizar, use **Consultar este pedido** ou **Vincular transação PAY existente**, informando o ID da operação aprovada no PAY. A confirmação depende da conferência pela API; não é necessário cancelar a compra nem pagar novamente. [Recuperação do pagamento e retorno](docs/RETORNO-PAY.md). O checkout e a transação possuem IDs separados; a busca e o callback usam o identificador real do pagamento.
+Se o cartão já foi pago e a referência não é localizada, preserve o pedido. Após atualizar, use **Consultar este pedido** ou **Vincular transação PAY existente**, informando o ID da operação aprovada no PAY. A confirmação depende da conferência pela API; não é necessário cancelar a compra nem pagar novamente. [Recuperação do pagamento e retorno](docs/RETORNO-PAY.md). O checkout e a transação possuem IDs separados; a busca e o callback usam o identificador real do pagamento. A 2.8.4 também recupera vínculos antigos de tentativas pendentes, confere a gravação do status e mostra **Última consulta PAY** mesmo sem erro. [Pagamento conferido e pedido pendente](k8-produtos/CORRECAO-STATUS-PAY.md).
 
 As alterações deste plugin são publicadas no GitHub com pacote e manifesto para atualização pelo WordPress. Em **K8 Produtos → Configurações**, use **Verificar atualizações**; depois instale em **Painel → Atualizações**. O canal respeita a preferência de atualização automática escolhida no site. Pacotes de versões anteriores são preservados e o SHA-256 anunciado precisa corresponder ao ZIP.
 
 ## Instalar
 
 1. Faça backup do WordPress e do banco antes de migrar os plugins anteriores.
-2. Baixe [k8-produtos-2.8.3.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.8.3.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
+2. Baixe [k8-produtos-2.8.4.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/k8-produtos-2.8.4.zip) e instale em **Plugins → Adicionar plugin → Enviar plugin**. Se já usa a versão 2.0.0, substitua por esta uma vez para habilitar o canal de atualização.
 3. Baixe [bmt-educacional-1.0.0.zip](https://raw.githubusercontent.com/paulommaeda/materiais/main/dist/bmt-educacional-1.0.0.zip), instale em **Aparência → Temas → Adicionar tema → Enviar tema** e ative **BMT Educacional**.
 4. Abra **K8 Produtos → Alunos**. A base anterior `lista_alunos_v4` e os vínculos de `sba_guardians` são reaproveitados. Importe o CSV quando precisar atualizar o cadastro.
 5. Em **K8 Produtos → Produtos e preços**, abra ou crie um produto, selecione suas turmas e cadastre categoria, descrição, imagem opcional e preço normal do produto. Marque **Exibir este produto na home e no catálogo**.

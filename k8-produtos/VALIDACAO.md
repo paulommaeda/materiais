@@ -1,5 +1,13 @@
 # Validação
 
+## Versão 2.8.4 — status e tentativa antiga pendente
+
+Passaram 152 verificações PAY e as 389 verificações anteriores em WordPress 7.1.4, PHP 8.5.12 e MariaDB local. As operações financeiras e os e-mails são simulados. Passaram também as 108 verificações JavaScript, a conferência de sintaxe e os cinco testes de integridade/imutabilidade dos pacotes.
+
+O teste novo falhou na 2.8.3: uma tentativa pendente já vinculada impedia a busca de outra aprovação correspondente. A correção recupera o ID aprovado, persiste Paga no mesmo pedido, registra os dois IDs no histórico e mostra o resultado após recarregar o painel. Pendência real, ausência de correspondência, duas aprovações e histórico já confirmado continuam protegidos. O vínculo manual consulta as duas transações antes de permitir a substituição da tentativa não aprovada.
+
+Uma escrita simulada sem efeito no banco agora gera erro em vez de anunciar sucesso. Após restabelecer a gravação, a consulta confirma a mesma compra. O resumo administrativo não guarda CPF/nome e não aparece na resposta pública. A fixture pay-status-upgrade.php reproduz a pendência com o ZIP publicado 2.8.3 e verifica a recuperação após a atualização nativa, preservando os campos do pedido, as credenciais e o checkout.
+
 ## Versão 2.8.3 — checkout e transação distintos
 
 A documentação PAY de callback fornece Identificador e IdentificadorCheckout como campos separados. Os testes agora proíbem consultar o ID do checkout como transação e usam IDs distintos em todos os meios. A referência e o número podem não estar disponíveis, desde que a descrição exata do pedido e os dados financeiros permitam a conferência.

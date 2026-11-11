@@ -473,5 +473,90 @@ $GLOBALS['pay_mode'] = 'normal';
 $GLOBALS['pay_remote'][PayPayments::reference($renamed)]['state'] = 'Aprovada';
 $wpdb->update(S::table('produtos'), ['nome' => 'Nome alterado depois da compra'], ['id' => $small_product_id]);
 pay_check(Service::sync_order($small_product_id, $renamed->id)->status_pagamento === 'Paga', 'renomear produto não altera a descrição enviada e não impede a confirmação do checkout anterior');
+// Versões anteriores podiam guardar uma tentativa pendente como vínculo definitivo.
+$GLOBALS['pay_mode'] = 'id_only';
+$stale = pay_start($small_product, 'LEGACY-PENDING-BINDING', 'Cartao'); $stale = Service::order($small_product_id, $stale['id']);
+$GLOBALS['pay_mode'] = 'normal';
+$stale_entry = $GLOBALS['pay_remote'][PayPayments::reference($stale)];
+S::must($wpdb->update(S::table('pedidos'), ['pay_transacao_id' => $stale_entry['transaction_id']], ['id' => $stale->id]));
+$stale_approved = $stale_entry; $stale_approved['state'] = 'Aprovada'; $stale_approved['transaction_id'] = 'ffffffff-ffff-f111-91f2-000000000012';
+$GLOBALS['pay_remote']['legacy-approved-attempt'] = $stale_approved;
+$stale_create_count = $GLOBALS['pay_posts'];
+Service::sync_order($small_product_id, $stale->id);
+$stale_stored = Service::order($small_product_id, $stale->id);
+pay_check($stale_stored->status_pagamento === 'Paga' && $stale_stored->pay_transacao_id === $stale_approved['transaction_id'], 'vínculo antigo de tentativa pendente não esconde a aprovação de outra tentativa do mesmo pedido');
+pay_check($GLOBALS['pay_posts'] === $stale_create_count && $stale_stored->pay_checkout_id === $stale->pay_checkout_id && $stale_stored->active_key === $stale->active_key, 'recuperação do vínculo antigo preserva o checkout e o pedido sem criar outro pagamento');
+$replaced_log = $wpdb->get_var($wpdb->prepare('SELECT motivo FROM ' . S::table('entregas_log') . ' WHERE pedido_id=%d AND acao=%s', $stale->id, 'pay_tentativa'));
+pay_check(strpos((string) $replaced_log, $stale_entry['transaction_id']) !== false && strpos($replaced_log, $stale_approved['transaction_id']) !== false, 'histórico registra a tentativa antiga e a transação aprovada que a substituiu');
+$summary = PayPayments::consultation($stale_stored);
+pay_check($summary['estado'] === 'Aprovada' && $summary['situacao_pedido'] === 'Paga' && $summary['transacao_id'] === $stale_approved['transaction_id'] && abs($summary['valor_pago'] - 0.23) < 0.001, 'consulta aprovada registra estado do provedor, valor pago e situação gravada no banco');
+pay_check(strpos($stale_stored->resposta_raw, '52998224725') === false && strpos($stale_stored->resposta_raw, 'ClienteNome') === false && strpos(wp_json_encode(Service::public_order($stale_stored)), 'pay_consulta') === false, 'resumo administrativo não guarda CPF/nome nem vaza para a resposta pública');
+$admin_sync = pay_mutate('sync', $small_product_id, ['pedido_id' => $stale->id]);
+pay_check($admin_sync['pagamento'] === 'Paga' && strpos($admin_sync['message'], 'Situação registrada: Paga') !== false, 'consulta administrativa informa o pagamento persistido em vez de uma mensagem genérica de alteração');
+$_GET = ['k8_product' => $small_product_id, 'k8_tab' => 'orders'];
+$paid_dashboard = Views::dashboard_shortcode([]);
+preg_match('~<tr><td>#' . $stale->id . '<br>.*?</tr>~s', $paid_dashboard, $paid_row);
+pay_check(!empty($paid_row[0]) && strpos($paid_row[0], 'k8-badge">Paga</span>') !== false && strpos($paid_row[0], 'Última consulta PAY') !== false && strpos($paid_row[0], 'Estado informado pela K8: Aprovada') !== false, 'linha do mesmo pedido exibe Paga e o resultado da última consulta após recarregar');
+
+$waiting = pay_start($small_product, 'REAL-PENDING-RESULT', 'Cartao'); $waiting = Service::order($small_product_id, $waiting['id']);
+$waiting_entry = &$GLOBALS['pay_remote'][PayPayments::reference($waiting)];
+S::must($wpdb->update(S::table('pedidos'), ['pay_transacao_id' => $waiting_entry['transaction_id']], ['id' => $waiting->id]));
+$pending_message = pay_mutate('sync', $small_product_id, ['pedido_id' => $waiting->id]);
+$waiting_stored = Service::order($small_product_id, $waiting->id);
+$waiting_summary = PayPayments::consultation($waiting_stored);
+pay_check($pending_message['pagamento'] === 'Pendente' && $waiting_stored->status_pagamento === 'Pendente' && $waiting_summary['estado'] === 'Pendente' && $waiting_summary['valor_pago'] === 0, 'pendência real permanece pendente e explica o estado retornado pela API mesmo sem erro');
+$waiting_entry['list_visible'] = false; $waiting_entry['reference_visible'] = false;
+S::must($wpdb->update(S::table('pedidos'), ['pay_transacao_id' => null], ['id' => $waiting->id]));
+Service::sync_order($small_product_id, $waiting->id);
+$missing_summary = PayPayments::consultation(Service::order($small_product_id, $waiting->id));
+pay_check($missing_summary['localizado'] === false && $missing_summary['situacao_pedido'] === 'Pendente', 'ausência de transação correspondente fica registrada e não é apresentada como confirmação de pagamento');
+
+// O vínculo administrativo também pode recuperar uma tentativa antiga ainda não aprovada.
+$manual_stale = pay_start($small_product, 'MANUAL-LEGACY-BINDING', 'Pix'); $manual_stale = Service::order($small_product_id, $manual_stale['id']);
+$manual_old_entry = $GLOBALS['pay_remote'][PayPayments::reference($manual_stale)];
+S::must($wpdb->update(S::table('pedidos'), ['pay_transacao_id' => $manual_old_entry['transaction_id']], ['id' => $manual_stale->id]));
+$manual_new_entry = $manual_old_entry; $manual_new_entry['state'] = 'Aprovada'; $manual_new_entry['transaction_id'] = 'abababab-abab-f111-91f2-000000000012';
+$GLOBALS['pay_remote']['manual-legacy-approved'] = $manual_new_entry;
+$manual_result = pay_mutate('reconcile', $small_product_id, ['pedido_id' => $manual_stale->id, 'cobranca_id' => $manual_new_entry['transaction_id']]);
+pay_check($manual_result['pagamento'] === 'Paga' && Service::order($small_product_id, $manual_stale->id)->pay_transacao_id === $manual_new_entry['transaction_id'], 'vínculo administrativo troca somente a tentativa não aprovada após consultar ambas as transações');
+$manual_paid = Service::order($small_product_id, $manual_stale->id);
+pay_reject(fn() => Service::reconcile($small_product_id, $manual_paid->id, $manual_old_entry['transaction_id']), 'pagamento já confirmado não pode ser trocado por uma tentativa antiga');
+pay_check(Service::order($small_product_id, $manual_paid->id)->pay_transacao_id === $manual_new_entry['transaction_id'], 'recusa de troca preserva o ID do pagamento confirmado');
+
+$protected = pay_start($small_product, 'PROTECTED-APPROVED-BINDING', 'Cartao'); $protected = Service::order($small_product_id, $protected['id']);
+$protected_entry = &$GLOBALS['pay_remote'][PayPayments::reference($protected)]; $protected_entry['state'] = 'Aprovada';
+S::must($wpdb->update(S::table('pedidos'), ['pay_transacao_id' => $protected_entry['transaction_id']], ['id' => $protected->id]));
+$protected_other = $protected_entry; $protected_other['transaction_id'] = 'aeaeaeae-aeae-f111-91f2-000000000012';
+$GLOBALS['pay_remote']['protected-other-approval'] = $protected_other;
+pay_reject(fn() => Service::reconcile($small_product_id, $protected->id, $protected_other['transaction_id']), 'rótulo local pendente não permite trocar uma transação que a API já informa aprovada');
+pay_check(Service::sync_order($small_product_id, $protected->id)->pay_transacao_id === $protected_entry['transaction_id'] && Service::order($small_product_id, $protected->id)->status_pagamento === 'Paga', 'consulta confirma a aprovação já vinculada sem escolher outro ID');
+$protected_entry['state'] = 'Pendente';
+pay_check(Service::sync_order($small_product_id, $protected->id)->status_pagamento === 'Em conferência', 'pagamento previamente confirmado com mudança de estado exige conferência');
+pay_reject(fn() => Service::reconcile($small_product_id, $protected->id, $protected_other['transaction_id']), 'pedido em conferência não permite trocar o histórico por outra aprovação');
+pay_check(Service::order($small_product_id, $protected->id)->pay_transacao_id === $protected_entry['transaction_id'], 'vínculo previamente confirmado permanece preservado durante a conferência');
+
+$ambiguous_stale = pay_start($small_product, 'AMBIGUOUS-LEGACY-BINDING', 'Cartao'); $ambiguous_stale = Service::order($small_product_id, $ambiguous_stale['id']);
+$ambiguous_old = $GLOBALS['pay_remote'][PayPayments::reference($ambiguous_stale)];
+S::must($wpdb->update(S::table('pedidos'), ['pay_transacao_id' => $ambiguous_old['transaction_id']], ['id' => $ambiguous_stale->id]));
+$ambiguous_first = $ambiguous_old; $ambiguous_first['state'] = 'Aprovada'; $ambiguous_first['transaction_id'] = 'acacacac-acac-f111-91f2-000000000012';
+$ambiguous_second = $ambiguous_first; $ambiguous_second['transaction_id'] = 'adadadad-adad-f111-91f2-000000000012';
+$GLOBALS['pay_remote']['ambiguous-legacy-first'] = $ambiguous_first; $GLOBALS['pay_remote']['ambiguous-legacy-second'] = $ambiguous_second;
+pay_reject(fn() => Service::sync_order($small_product_id, $ambiguous_stale->id), 'vínculo antigo com duas aprovações correspondentes exige conferência');
+$ambiguous_stored = Service::order($small_product_id, $ambiguous_stale->id);
+pay_check($ambiguous_stored->status_pagamento === 'Pendente' && $ambiguous_stored->pay_transacao_id === $ambiguous_old['transaction_id'], 'busca ambígua não altera parcialmente o status ou vínculo antigo');
+
+// Uma gravação sem efeito não pode produzir resposta de pagamento confirmado.
+$write_failure = pay_start($small_product, 'PAY-WRITE-FAILURE', 'Boleto', pay_address()); $write_failure = Service::order($small_product_id, $write_failure['id']);
+$GLOBALS['pay_remote'][PayPayments::reference($write_failure)]['state'] = 'Aprovada';
+$GLOBALS['pay_discarded_writes'] = 0;
+$discard_payment_write = static function ($query) {
+    if (strpos($query, 'UPDATE `' . S::table('pedidos') . '`') === 0 && strpos($query, "`status_pagamento` = 'Paga'") !== false) { $GLOBALS['pay_discarded_writes']++; return 'SELECT 1'; }
+    return $query;
+};
+add_filter('query', $discard_payment_write);
+$write_error = pay_reject(fn() => pay_mutate('sync', $small_product_id, ['pedido_id' => $write_failure->id]), 'gravação descartada pelo banco não retorna sucesso de confirmação');
+remove_filter('query', $discard_payment_write);
+pay_check($GLOBALS['pay_discarded_writes'] === 1 && strpos($write_error->getMessage(), 'não foi gravado') !== false && Service::order($small_product_id, $write_failure->id)->status_pagamento === 'Pendente', 'falha de persistência conserva pendência e informa o problema de gravação');
+pay_check(pay_mutate('sync', $small_product_id, ['pedido_id' => $write_failure->id])['pagamento'] === 'Paga' && Service::order($small_product_id, $write_failure->id)->status_pagamento === 'Paga', 'nova consulta confirma o mesmo pagamento após restabelecer a gravação');
 pay_check($wpdb->last_error === '', 'validação termina sem erro SQL');
 echo "$checks verificações de integração PAY aprovadas.\n";

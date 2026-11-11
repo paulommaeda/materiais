@@ -158,18 +158,57 @@ final class PayPayments
         return $result;
     }
 
+    private static function unconfirmed_attempt(object $order, array $result): bool
+    {
+        return $order->status_pagamento === 'Pendente' && !self::identity_errors($order, $result, $order->pay_transacao_id) &&
+            in_array($result['Estado'] ?? '', ['Pendente','Rejeitada','Cancelada','pendenteCobranca','acancelarCNAB',
+                'PendenteAntifraude','AnaliseAntifraude','ProcessarInstrucao','EmProcessamento','CartaoPreAutorizado','ErroGerarPixBH'], true);
+    }
+
+    private static function recorded(array $update, ?array $result): array
+    {
+        // Guarda somente o resultado da consulta, sem CPF, nome, endereço ou dados do cartão.
+        $summary = ['tipo' => 'pay_consulta', 'consultado_em' => current_time('mysql'),
+            'localizado' => $result !== null, 'situacao_pedido' => $update['status_pagamento']];
+        if ($result !== null) {
+            $summary['estado'] = substr(sanitize_text_field((string) ($result['Estado'] ?? '')), 0, 50);
+            $summary['transacao_id'] = PayClient::valid_id($result['Identificador'] ?? null) ? $result['Identificador'] : null;
+            foreach (['Valor' => 'valor', 'ValorPago' => 'valor_pago'] as $field => $key) {
+                if (isset($result[$field]) && is_numeric($result[$field])) $summary[$key] = (float) $result[$field];
+            }
+        }
+        $update['resposta_raw'] = wp_json_encode($summary);
+        return $update;
+    }
+
+    public static function consultation(object $order): ?array
+    {
+        if (!self::is_pay($order) || empty($order->resposta_raw) || strlen($order->resposta_raw) > 8192) return null;
+        $summary = json_decode($order->resposta_raw, true);
+        return is_array($summary) && ($summary['tipo'] ?? '') === 'pay_consulta' ? $summary : null;
+    }
+
     public static function synchronized(object $order, ?string $transaction_id = null): array
     {
         global $wpdb;
         $client = new PayClient($order->pagamento_ambiente);
         $expected_id = $transaction_id;
         $result = null;
+        $replaceable_binding = false;
         if ($expected_id !== null) {
-            if ($order->pay_transacao_id && strcasecmp($order->pay_transacao_id, $expected_id) !== 0) throw new \InvalidArgumentException('O pedido já está vinculado a outra transação PAY. Confira o histórico antes de alterar o vínculo.');
+            if ($order->pay_transacao_id && strcasecmp($order->pay_transacao_id, $expected_id) !== 0) {
+                if ($order->status_pagamento !== 'Pendente') throw new \InvalidArgumentException('O pedido já está vinculado a outra transação PAY. Confira o histórico antes de alterar o vínculo.');
+                $previous = $client->transaction($order->pay_transacao_id);
+                $replaceable_binding = self::unconfirmed_attempt($order, $previous);
+                if (!$replaceable_binding) throw new \InvalidArgumentException('O pedido já está vinculado a outra transação PAY. Confira o histórico antes de alterar o vínculo.');
+            }
             $result = $client->transaction($expected_id);
         } else {
             if ($order->pay_transacao_id) {
-                try { $result = $client->transaction($order->pay_transacao_id); $expected_id = $order->pay_transacao_id; }
+                try {
+                    $result = $client->transaction($order->pay_transacao_id); $expected_id = $order->pay_transacao_id;
+                    $replaceable_binding = self::unconfirmed_attempt($order, $result);
+                }
                 catch (PayException $e) { if ($order->status_pagamento === 'Paga') throw $e; }
             }
             if ($result === null) {
@@ -180,23 +219,24 @@ final class PayPayments
                 $errors = self::identity_errors($order, $result, $expected_id);
                 if ($errors) throw new \RuntimeException('Dados PAY insuficientes ou divergentes: ' . implode(', ', $errors) . '. A entrega continua em conferência.');
             }
-            if (!$order->pay_transacao_id && $order->status_pagamento !== 'Paga' && ($result === null || !in_array($result['Estado'] ?? '', ['Aprovada', 'Liquidado'], true))) {
+            if ((!$order->pay_transacao_id || $replaceable_binding) && $order->status_pagamento !== 'Paga' && ($result === null || !in_array($result['Estado'] ?? '', ['Aprovada', 'Liquidado'], true))) {
                 $discovered = self::discover($order, $client);
                 if ($discovered !== null) { $result = $discovered; $expected_id = $discovered['Identificador']; }
             }
             if ($result === null) {
-                return ['status' => $order->status === 'verificacao' ? 'verificacao' : 'gerado', 'status_pagamento' => 'Pendente',
-                    'verificado_em' => current_time('mysql'), 'erro_mensagem' => null];
+                return self::recorded(['status' => $order->status === 'verificacao' ? 'verificacao' : 'gerado', 'status_pagamento' => 'Pendente',
+                    'verificado_em' => current_time('mysql'), 'erro_mensagem' => null], null);
             }
         }
         $id = $result['Identificador'] ?? '';
         $errors = self::identity_errors($order, $result, $expected_id);
         if ($errors) throw new \RuntimeException('Dados PAY insuficientes ou divergentes: ' . implode(', ', $errors) . '. A entrega continua em conferência.');
+        if ($order->pay_transacao_id && strcasecmp($order->pay_transacao_id, $id) !== 0 && !$replaceable_binding) throw new \RuntimeException('O vínculo PAY existente precisa ser conferido antes de registrar outra transação.');
         $state = $result['Estado'] ?? '';
         $paid = in_array($state, ['Aprovada', 'Liquidado'], true);
         $cancelled = in_array($state, ['Cancelada', 'Estornado'], true);
         $pending = ['Pendente','Rejeitada','ACancelar','pendenteCobranca','acancelarCNAB','PendenteAntifraude','AnaliseAntifraude',
-            'ProcessarInstrucao','EmProcessamento','PagoeAberto','EstornarPIX','ErroEstorno','FalhaCancelamento','CartaoPreAutorizado','CartaoCancelametoFuturo'];
+            'ProcessarInstrucao','EmProcessamento','PagoeAberto','EstornarPIX','ErroEstorno','FalhaCancelamento','CartaoPreAutorizado','CartaoCancelametoFuturo','ErroGerarPixBH'];
         if (!$paid && !$cancelled && !in_array($state, $pending, true)) throw new \RuntimeException('Estado PAY não reconhecido. Confira a transação antes de liberar entrega.');
         $method = ['Pix' => 'pix', 'Cartao' => 'cartao', 'Boleto' => 'boleto'][$order->metodo];
         if (($paid || $cancelled) && strtolower((string) ($result['TipoPagamento'] ?? '')) !== $method) throw new \RuntimeException('A forma de pagamento confirmada pelo PAY não corresponde ao pedido.');
@@ -206,11 +246,11 @@ final class PayPayments
         $update = ['pay_transacao_id' => $paid ? $id : ($order->pay_transacao_id ?: null),
             'verificado_em' => current_time('mysql'), 'erro_mensagem' => null];
         if (empty($order->pay_descricao) && !empty($result['ClienteDescricao'])) $update['pay_descricao'] = $result['ClienteDescricao'];
-        if ($paid) return $update + ['status' => 'gerado', 'status_pagamento' => 'Paga', 'checkout_url' => null];
-        if ($cancelled && $order->status_pagamento === 'Paga') return $update + ['status_pagamento' => 'Cancelada', 'status' => 'cancelado', 'checkout_url' => null, 'active_key' => null, 'cupom_reservado' => 0];
+        if ($paid) return self::recorded($update + ['status' => 'gerado', 'status_pagamento' => 'Paga', 'checkout_url' => null], $result);
+        if ($cancelled && $order->status_pagamento === 'Paga') return self::recorded($update + ['status_pagamento' => 'Cancelada', 'status' => 'cancelado', 'checkout_url' => null, 'active_key' => null, 'cupom_reservado' => 0], $result);
         if (in_array($state, ['ACancelar','EstornarPIX','ErroEstorno','FalhaCancelamento','CartaoCancelametoFuturo'], true) || $order->status_pagamento === 'Paga') {
-            return $update + ['status' => 'gerado', 'status_pagamento' => 'Em conferência', 'checkout_url' => null];
+            return self::recorded($update + ['status' => 'gerado', 'status_pagamento' => 'Em conferência', 'checkout_url' => null], $result);
         }
-        return $update + ['status' => 'gerado', 'status_pagamento' => 'Pendente'];
+        return self::recorded($update + ['status' => 'gerado', 'status_pagamento' => 'Pendente'], $result);
     }
 }

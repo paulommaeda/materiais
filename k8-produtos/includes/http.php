@@ -263,7 +263,9 @@ final class Http
                 Support::text($data, 'assinatura'), Support::text($data, 'recebido_por'), Support::text($data, 'motivo'));
         } elseif ($op === 'sync') {
             if (!empty($data['pedido_id'])) {
-                Service::sync_order($id, absint($data['pedido_id']));
+                $order = Service::sync_order($id, absint($data['pedido_id']));
+                return ['message' => 'Pedido #' . $order->id . ' consultado. Situação registrada: ' . ($order->status_pagamento ?: 'Pendente') . '.',
+                    'pagamento' => $order->status_pagamento ?: 'Pendente'];
             } else {
                 $result = Service::sync_batch($id);
                 return ['message' => $result['atualizados'] . ' pedido(s) consultado(s); ' . $result['falhas'] . ' falha(s).'];
@@ -271,7 +273,11 @@ final class Http
         } elseif ($op === 'cancel') {
             Service::cancel_order($id, absint($data['pedido_id'] ?? 0), Support::text($data, 'motivo'), !empty($data['confirmar_sem_cobranca']));
         } elseif ($op === 'reconcile') {
-            Service::reconcile($id, absint($data['pedido_id'] ?? 0), Support::text($data, 'cobranca_id'));
+            $order_id = absint($data['pedido_id'] ?? 0);
+            Service::reconcile($id, $order_id, Support::text($data, 'cobranca_id'));
+            $order = Service::order($id, $order_id);
+            return ['message' => 'Transação consultada. Situação registrada no pedido #' . $order->id . ': ' . ($order->status_pagamento ?: 'Pendente') . '.',
+                'pagamento' => $order->status_pagamento ?: 'Pendente'];
         } elseif ($op === 'settings') {
             self::settings($data);
         } else {

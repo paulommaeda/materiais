@@ -351,6 +351,16 @@ final class Views
             if (PayPayments::is_pay($o) && !$o->erro_mensagem) echo '<p class="k8-muted">Referência PAY: ' . esc_html(PayPayments::reference($o)) . '</p>';
             if (PayPayments::is_pay($o) && $o->pay_checkout_id) echo '<p class="k8-muted">ID do checkout PAY: ' . esc_html($o->pay_checkout_id) . '</p>';
             if (PayPayments::is_pay($o) && $o->pay_transacao_id) echo '<p class="k8-muted">ID da transação PAY: ' . esc_html($o->pay_transacao_id) . '</p>';
+            $consultation = PayPayments::consultation($o);
+            if ($consultation) {
+                echo '<details><summary>Última consulta PAY</summary><p>Consultado em: ' . esc_html($consultation['consultado_em'] ?? '') . '</p>';
+                if (!empty($consultation['localizado'])) {
+                    echo '<p>Estado informado pela K8: ' . esc_html($consultation['estado'] ?? '') . '</p><p>Transação consultada: ' . esc_html($consultation['transacao_id'] ?? '') . '</p>';
+                    if (isset($consultation['valor'])) echo '<p>Valor da transação: ' . esc_html(self::currency((float) $consultation['valor'])) . '</p>';
+                    if (isset($consultation['valor_pago'])) echo '<p>Valor pago informado pela K8: ' . esc_html(self::currency((float) $consultation['valor_pago'])) . '</p>';
+                } else echo '<p>Nenhuma transação aprovada e correspondente foi localizada na busca.</p>';
+                echo '<p>Situação registrada no pedido: ' . esc_html($consultation['situacao_pedido'] ?? '') . '</p></details>';
+            }
             if ($o->erro_mensagem) {
                 echo '<details><summary>Detalhes da tentativa</summary><p>' . esc_html($o->erro_mensagem) . '</p><p>Referência na K8: ' . esc_html(PayPayments::is_pay($o) ? PayPayments::reference($o) : (CardPayments::is_link($o) ? CardPayments::reference($o) : 'K8P-' . (int) $o->id)) . '</p></details>';
             }

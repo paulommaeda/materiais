@@ -1,4 +1,6 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.8.3
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.8.4
+
+A versão 2.8.4 recupera pedidos presos a uma tentativa antiga pendente, confere a gravação do pagamento e exibe **Última consulta PAY** mesmo quando não há erro. [Pedido pago ainda pendente](CORRECAO-STATUS-PAY.md).
 
 A versão 2.8.3 separa checkout e pagamento, lê o ID real no callback e recupera pagamentos pela descrição validada do pedido quando a referência não é encontrada. [Guia de vínculo e recuperação](CORRECAO-VINCULO-PAY.md).
 

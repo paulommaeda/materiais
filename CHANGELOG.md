@@ -1,5 +1,14 @@
 # Alterações
 
+## Plugin 2.8.4
+
+- Recupera pedidos presos ao vínculo de uma tentativa antiga pendente, buscando uma aprovação única e correspondente antes de atualizar o mesmo pedido para Paga.
+- O vínculo administrativo consulta a tentativa anterior antes de substituí-la e registra os dois IDs no histórico. Pagamentos já confirmados e pedidos em conferência mantêm o vínculo protegido.
+- Confere a gravação do status e do ID no banco antes de responder sucesso; uma gravação sem efeito gera erro e preserva a pendência.
+- Exibe Última consulta PAY no painel, com estado retornado, valores, transação e situação registrada, inclusive quando a consulta não encontra aprovação e não há erro.
+- Consultar e vincular informam a situação efetivamente registrada, em vez da mensagem genérica de alteração salva. O resumo não contém CPF, nome ou dados do cartão e não é enviado ao comprador.
+- Testes reproduzem a pendência da 2.8.3 e verificam recuperação, gravação, painel, ambiguidade e proteção do histórico, sem criar pagamentos reais.
+
 ## Plugin 2.8.3
 
 - Separa definitivamente ID de checkout e ID da transação; não consulta o checkout como se fosse um pagamento.

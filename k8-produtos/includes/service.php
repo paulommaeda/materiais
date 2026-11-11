@@ -111,6 +111,13 @@ final class Service
         Support::transaction(static function () use ($wpdb, $order, $update, $reconciled_id) {
             if (($update['status_pagamento'] ?? '') === 'Cancelada') self::release_coupon($order);
             Support::must($wpdb->update(Support::table('pedidos'), $update, ['id' => $order->id]));
+            $saved = self::order((int) $order->produto_id, (int) $order->id);
+            if ($saved->status_pagamento !== $update['status_pagamento'] || (!empty($update['pay_transacao_id']) && strcasecmp((string) $saved->pay_transacao_id, $update['pay_transacao_id']) !== 0)) {
+                throw new \RuntimeException('A consulta PAY terminou, mas o resultado não foi gravado no pedido. Confira o banco de dados antes de liberar a entrega.');
+            }
+            if ($order->pay_transacao_id && !empty($update['pay_transacao_id']) && strcasecmp($order->pay_transacao_id, $update['pay_transacao_id']) !== 0) {
+                Support::log((int) $order->produto_id, (int) $order->id, 'pay_tentativa', ['motivo' => 'Tentativa antiga não aprovada ' . $order->pay_transacao_id . ' substituída pela transação aprovada ' . $update['pay_transacao_id'] . ' após consulta e conferência.']);
+            }
             if ($order->status_pagamento === 'Paga' && $update['status_pagamento'] !== 'Paga') Support::log((int) $order->produto_id, (int) $order->id, 'pay_revisao', ['motivo' => 'Situação PAY alterada após pagamento: ' . $update['status_pagamento']]);
             if ($reconciled_id !== null) Support::log((int) $order->produto_id, (int) $order->id, 'pay_conciliado', ['motivo' => 'Transação PAY ' . $reconciled_id . ' vinculada após consulta e conferência de pedido, comprador, valor e método.']);
         });
