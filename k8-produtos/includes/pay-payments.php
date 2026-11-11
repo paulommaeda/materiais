@@ -126,6 +126,44 @@ final class PayPayments
         return $errors;
     }
 
+    private static function instrument($value): ?string
+    {
+        if (!is_string($value)) return null;
+        $value = strtolower(preg_replace('/[\s_-]+/', '', remove_accents(trim($value))));
+        if (in_array($value, ['cartaodecredito', 'cartaocredito'], true)) return 'cartao';
+        return in_array($value, ['cartao','pix','boleto','ted','saldowebconta','boletohibrido','openfinance','manual'], true) ? $value : null;
+    }
+
+    private static function method_matches(object $order, array $result): bool
+    {
+        $expected = strtolower($order->metodo);
+        $confirmed = false;
+        // Tipo identifica o instrumento da transação; TipoPagamento pode vir não definido.
+        // Pelo menos um campo precisa confirmá-lo, e campos reconhecidos não podem divergir.
+        foreach (['Tipo', 'TipoPagamento'] as $field) {
+            $instrument = self::instrument($result[$field] ?? null);
+            if ($instrument === null) continue;
+            if ($instrument !== $expected) return false;
+            $confirmed = true;
+        }
+        return $confirmed;
+    }
+
+    private static function method_fields(array $result): array
+    {
+        $summary = [];
+        foreach (['Tipo' => 'tipo_transacao', 'TipoPagamento' => 'tipo_pagamento'] as $field => $key) {
+            $value = $result[$field] ?? null;
+            $instrument = self::instrument($value);
+            if ($instrument !== null) $summary[$key] = $instrument;
+            elseif ($value === null || $value === '') $summary[$key] = 'não informado';
+            elseif (is_string($value) && in_array(strtolower(trim($value)), ['naodefinido','não definido','todos'], true)) $summary[$key] = 'não definido';
+            elseif (is_scalar($value) && preg_match('/^\d{1,2}$/D', (string) $value)) $summary[$key] = 'código ' . $value;
+            else $summary[$key] = 'não reconhecido';
+        }
+        return $summary;
+    }
+
     private static function discover(object $order, PayClient $client): ?array
     {
         $now = current_datetime();
@@ -143,8 +181,7 @@ final class PayPayments
                 'Tipo' => $order->metodo, 'Estado' => 'Todos', 'TipoFiltro' => 'dataemissao']);
             foreach ($items as $item) {
                 if (!is_array($item) || self::identity_errors($order, $item) || !in_array($item['Estado'] ?? '', ['Aprovada', 'Liquidado'], true)) continue;
-                $method = ['Pix' => 'pix', 'Cartao' => 'cartao', 'Boleto' => 'boleto'][$order->metodo];
-                if (strtolower((string) ($item['TipoPagamento'] ?? '')) !== $method || !isset($item['ValorPago']) || !is_numeric($item['ValorPago']) || abs((float) $item['ValorPago'] - (float) $order->valor) > 0.009) continue;
+                if (!self::method_matches($order, $item) || !isset($item['ValorPago']) || !is_numeric($item['ValorPago']) || abs((float) $item['ValorPago'] - (float) $order->valor) > 0.009) continue;
                 $matches[strtolower($item['Identificador'])] = $item;
             }
         }
@@ -171,6 +208,7 @@ final class PayPayments
         $summary = ['tipo' => 'pay_consulta', 'consultado_em' => current_time('mysql'),
             'localizado' => $result !== null, 'situacao_pedido' => $update['status_pagamento']];
         if ($result !== null) {
+            $summary += self::method_fields($result);
             $summary['estado'] = substr(sanitize_text_field((string) ($result['Estado'] ?? '')), 0, 50);
             $summary['transacao_id'] = PayClient::valid_id($result['Identificador'] ?? null) ? $result['Identificador'] : null;
             foreach (['Valor' => 'valor', 'ValorPago' => 'valor_pago'] as $field => $key) {
@@ -238,8 +276,11 @@ final class PayPayments
         $pending = ['Pendente','Rejeitada','ACancelar','pendenteCobranca','acancelarCNAB','PendenteAntifraude','AnaliseAntifraude',
             'ProcessarInstrucao','EmProcessamento','PagoeAberto','EstornarPIX','ErroEstorno','FalhaCancelamento','CartaoPreAutorizado','CartaoCancelametoFuturo','ErroGerarPixBH'];
         if (!$paid && !$cancelled && !in_array($state, $pending, true)) throw new \RuntimeException('Estado PAY não reconhecido. Confira a transação antes de liberar entrega.');
-        $method = ['Pix' => 'pix', 'Cartao' => 'cartao', 'Boleto' => 'boleto'][$order->metodo];
-        if (($paid || $cancelled) && strtolower((string) ($result['TipoPagamento'] ?? '')) !== $method) throw new \RuntimeException('A forma de pagamento confirmada pelo PAY não corresponde ao pedido.');
+        if (($paid || $cancelled) && !self::method_matches($order, $result)) {
+            $types = self::method_fields($result);
+            throw new \RuntimeException('A forma de pagamento confirmada pelo PAY não corresponde ao pedido. Esperado: ' . $order->metodo .
+                '; Tipo: ' . $types['tipo_transacao'] . '; TipoPagamento: ' . $types['tipo_pagamento'] . '.');
+        }
         if ($paid && (!isset($result['ValorPago']) || !is_numeric($result['ValorPago']) || abs((float) $result['ValorPago'] - (float) $order->valor) > 0.009)) throw new \RuntimeException('O PAY não confirmou o pagamento integral do pedido.');
         if ($paid && $order->metodo === 'Cartao' && is_array($result['Parcelas'] ?? null) && count($result['Parcelas']) > (int) $order->cartao_parcelas_max) throw new \RuntimeException('O parcelamento confirmado pelo PAY excede o limite registrado no pedido. Confira antes de liberar a entrega.');
         if ($wpdb->get_var($wpdb->prepare('SELECT id FROM ' . Support::table('pedidos') . ' WHERE pay_transacao_id = %s AND id <> %d LIMIT 1', $id, $order->id))) throw new \RuntimeException('Esta transação PAY já está vinculada a outro pedido.');

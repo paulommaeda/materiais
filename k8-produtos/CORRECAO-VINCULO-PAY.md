@@ -1,13 +1,15 @@
-# K8 Produtos 2.8.4 — vínculo entre checkout e transação paga
+# K8 Produtos 2.8.5 — vínculo entre checkout e transação paga
 
 O checkout e o pagamento aprovado têm identificadores próprios. A versão 2.8.2 ainda tentava consultar o ID do checkout como transação e descartava o identificador enviado na notificação. Também exigia número e referência na resposta, mesmo quando a descrição preservava a identificação do pedido.
 
 A 2.8.4 acrescenta recuperação de vínculos antigos de tentativas pendentes, verificação da gravação do status e o painel **Última consulta PAY**. Veja [pagamento conferido e pedido pendente](CORRECAO-STATUS-PAY.md).
 
+A 2.8.5 confere Tipo e TipoPagamento para reconhecer o instrumento confirmado pela API, inclusive quando um campo não está definido. Veja [divergência na forma de pagamento](CORRECAO-METODO-PAY.md).
+
 ## Recuperar a compra já paga
 
 1. Preserve o pedido existente. Não cancele nem faça outro pagamento para corrigir a confirmação.
-2. No WordPress, use **K8 Produtos → Configurações → Verificar atualizações** e instale a **2.8.4** em **Painel → Atualizações**.
+2. No WordPress, use **K8 Produtos → Configurações → Verificar atualizações** e instale a **2.8.5** em **Painel → Atualizações**.
 3. No pedido pago, clique em **Consultar este pedido**. A consulta procura a transação efetiva e confere seus dados antes de registrá-la no mesmo pedido. O ID do checkout continua separado do ID do pagamento.
 4. A opção **Vincular transação PAY existente** continua disponível. Informe o ID da transação aprovada mostrado no PAY, e não o ID do checkout. A conferência aceita a descrição exata do pedido quando número e referência não foram devolvidos, mantendo as verificações de CPF, valor, método, estado e identificador.
 5. Se houver divergência, a mensagem passa a indicar quais campos precisam ser conferidos, sem mostrar os valores dos documentos. Uma recusa da API guarda o método, a rota e o detalhe mascarado em **Detalhes da tentativa** e na resposta administrativa. O erro público continua genérico.

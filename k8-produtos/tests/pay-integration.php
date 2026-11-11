@@ -558,5 +558,49 @@ $write_error = pay_reject(fn() => pay_mutate('sync', $small_product_id, ['pedido
 remove_filter('query', $discard_payment_write);
 pay_check($GLOBALS['pay_discarded_writes'] === 1 && strpos($write_error->getMessage(), 'não foi gravado') !== false && Service::order($small_product_id, $write_failure->id)->status_pagamento === 'Pendente', 'falha de persistência conserva pendência e informa o problema de gravação');
 pay_check(pay_mutate('sync', $small_product_id, ['pedido_id' => $write_failure->id])['pagamento'] === 'Paga' && Service::order($small_product_id, $write_failure->id)->status_pagamento === 'Paga', 'nova consulta confirma o mesmo pagamento após restabelecer a gravação');
+// Tipo da transação confirma o instrumento mesmo quando TipoPagamento não foi definido.
+$typed_card = pay_start($small_product, 'PAY-TYPE-CARD', 'Cartao'); $typed_card = Service::order($small_product_id, $typed_card['id']);
+$GLOBALS['pay_remote'][PayPayments::reference($typed_card)]['state'] = 'Aprovada';
+$GLOBALS['pay_tamper'] = ['TipoPagamento' => 'naodefinido'];
+Service::reconcile($small_product_id, $typed_card->id, $GLOBALS['pay_remote'][PayPayments::reference($typed_card)]['transaction_id']);
+pay_check(Service::order($small_product_id, $typed_card->id)->status_pagamento === 'Paga', 'cartão aprovado com Tipo=Cartao e TipoPagamento=naodefinido confirma o mesmo pedido por ID');
+$GLOBALS['pay_tamper'] = [];
+$typed_orders = [];
+foreach (['Cartao','Pix','Boleto'] as $typed_method) {
+    $GLOBALS['pay_mode'] = 'id_only';
+    $typed = pay_start($small_product, 'DISCOVER-TYPE-' . $typed_method, $typed_method, $typed_method === 'Boleto' ? pay_address() : []);
+    $typed = Service::order($small_product_id, $typed['id']); $GLOBALS['pay_mode'] = 'normal';
+    $GLOBALS['pay_remote'][PayPayments::reference($typed)]['state'] = 'Aprovada';
+    $GLOBALS['pay_tamper'] = ['TipoPagamento' => 'naodefinido']; $before_typed = $GLOBALS['pay_posts'];
+    $typed_orders[$typed_method] = Service::sync_order($small_product_id, $typed->id);
+    pay_check($typed_orders[$typed_method]->status_pagamento === 'Paga' && $GLOBALS['pay_posts'] === $before_typed, 'descoberta automática de ' . $typed_method . ' usa Tipo confirmado quando TipoPagamento não está definido, sem nova cobrança');
+}
+foreach ([['Tipo' => 'Cartao', 'TipoPagamento' => null], ['Tipo' => '  cartao ', 'TipoPagamento' => 'NaoDefinido'],
+    ['Tipo' => 'Cartão de Crédito', 'TipoPagamento' => 'cartão'], ['Tipo' => 'Cartao', 'TipoPagamento' => 0],
+    ['Tipo' => null, 'TipoPagamento' => 'cartao']] as $compatible_types) {
+    $GLOBALS['pay_tamper'] = $compatible_types;
+    pay_check(Service::sync_order($small_product_id, $typed_card->id)->status_pagamento === 'Paga', 'método comprovado por campo textual reconhecido preserva a confirmação: ' . wp_json_encode($compatible_types));
+}
+$GLOBALS['pay_tamper'] = [];
+$method_guard = pay_start($small_product, 'PAY-METHOD-GUARD', 'Cartao'); $method_guard = Service::order($small_product_id, $method_guard['id']);
+$guard_id = $GLOBALS['pay_remote'][PayPayments::reference($method_guard)]['transaction_id'];
+$GLOBALS['pay_remote'][PayPayments::reference($method_guard)]['state'] = 'Aprovada';
+foreach ([['Tipo' => 'Pix', 'TipoPagamento' => 'cartao'], ['Tipo' => 'Cartao', 'TipoPagamento' => 'boleto'],
+    ['Tipo' => 'Boleto', 'TipoPagamento' => 'naodefinido'], ['Tipo' => null, 'TipoPagamento' => null],
+    ['Tipo' => 'Todos', 'TipoPagamento' => 'naodefinido'], ['Tipo' => 3, 'TipoPagamento' => 3],
+    ['Tipo' => 'Ted', 'TipoPagamento' => null], ['Tipo' => 'Cartao', 'TipoPagamento' => 'Manual']] as $wrong_types) {
+    $GLOBALS['pay_tamper'] = $wrong_types;
+    $type_error = pay_reject(fn() => Service::reconcile($small_product_id, $method_guard->id, $guard_id), 'tipos divergentes ou sem instrumento reconhecido não liberam cartão: ' . wp_json_encode($wrong_types));
+}
+pay_check(strpos($type_error->getMessage(), 'Tipo: cartao') !== false && strpos($type_error->getMessage(), 'TipoPagamento: manual') !== false && Service::order($small_product_id, $method_guard->id)->status_pagamento === 'Pendente', 'erro informa os dois campos reconhecidos e preserva a pendência em caso de conflito');
+$GLOBALS['pay_tamper'] = ['Tipo' => '52998224725', 'TipoPagamento' => 'pay-production-secret'];
+$private_type_error = pay_reject(fn() => Service::reconcile($small_product_id, $method_guard->id, $guard_id), 'campos de método inválidos não confirmam o pagamento');
+pay_check(strpos($private_type_error->getMessage(), '52998224725') === false && strpos($private_type_error->getMessage(), 'pay-production-secret') === false, 'diagnóstico de tipos aceita apenas rótulos seguros e não imprime documentos ou valores arbitrários');
+$GLOBALS['pay_tamper'] = [];
+$typed_summary = PayPayments::consultation($typed_orders['Cartao']);
+pay_check($typed_summary['tipo_transacao'] === 'cartao' && $typed_summary['tipo_pagamento'] === 'não definido' && $typed_summary['situacao_pedido'] === 'Paga', 'resumo administrativo registra separadamente os dois campos e o status persistido');
+$_GET = ['k8_product' => $small_product_id, 'k8_tab' => 'orders'];
+$typed_dashboard = Views::dashboard_shortcode([]);
+pay_check(strpos($typed_dashboard, 'Tipo da transação: cartao') !== false && strpos($typed_dashboard, 'Tipo de pagamento: não definido') !== false, 'painel mostra o campo que identificou o cartão mesmo quando o outro não está definido');
 pay_check($wpdb->last_error === '', 'validação termina sem erro SQL');
 echo "$checks verificações de integração PAY aprovadas.\n";

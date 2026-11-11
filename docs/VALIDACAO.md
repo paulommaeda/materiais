@@ -1,5 +1,9 @@
 # Validação
 
+## Versão 2.8.5 — conferência dos campos de método
+
+Passaram 174 verificações PAY, 108 JavaScript, sintaxe de 49 PHP e dois JavaScript e cinco testes de integridade dos pacotes. O ZIP publicado 2.8.4 reproduziu a mensagem de divergência por método na consulta direta e o descarte do pagamento na busca. Após atualização nativa com Plugin_Upgrader, passaram dez verificações: dois pedidos fictícios preservados, recuperação manual e automática, Paga no painel recarregado, instrumento identificado por Tipo, credenciais/ambiente e checkout preservados, sem outra cobrança. Todos os arquivos instalados foram comparados ao ZIP e o arquivo obsoleto foi removido. O pipeline também executa as 389 verificações anteriores. As chamadas financeiras e e-mails são simulados; os valores exatos dos campos da conta de produção não foram fornecidos.
+
 ## Versão 2.8.4 — atualização do status PAY
 
 A atualização nativa com Plugin_Upgrader instalou o ZIP 2.8.4 sobre uma cópia da 2.8.3 publicada. Os 54 arquivos instalados foram comparados byte a byte com o pacote e um arquivo obsoleto foi removido. Passaram oito verificações adicionais: todos os campos anteriores à consulta, credenciais e ambiente preservados; o mesmo pedido fictício #12 passou de Pendente para Paga, com o ID aprovado, resumo privado e painel atualizado, sem outra cobrança.

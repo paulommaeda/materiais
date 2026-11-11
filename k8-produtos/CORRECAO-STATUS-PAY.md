@@ -1,9 +1,11 @@
 # K8 Produtos 2.8.4 — pagamento conferido e pedido pendente
 
+A 2.8.5 também corrige a leitura dos campos de método. Consulte [conferência da forma de pagamento](CORRECAO-METODO-PAY.md).
+
 ## Atualizar e consultar o pedido existente
 
 1. Em **K8 Produtos → Configurações**, clique em **Verificar atualizações**.
-2. Instale a **2.8.4** em **Painel → Atualizações**.
+2. Instale a **2.8.5** em **Painel → Atualizações**.
 3. Abra o pedido que já foi pago e clique em **Consultar este pedido**. Preserve o pedido; não faça outro pagamento para corrigir sua confirmação.
 4. Confira a situação na coluna **Pagamento** e abra **Última consulta PAY**. O painel mostra o estado retornado pela K8, o ID consultado, os valores e a situação gravada no pedido, mesmo sem mensagem de erro.
 5. Se a busca não localizar a aprovação, use **Vincular transação PAY existente** com o ID da operação aprovada no PAY. Checkout e transação possuem IDs próprios. A consulta autenticada precisa confirmar pedido, CPF, valor integral, método e estado.

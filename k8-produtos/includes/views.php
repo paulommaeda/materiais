@@ -356,6 +356,8 @@ final class Views
                 echo '<details><summary>Última consulta PAY</summary><p>Consultado em: ' . esc_html($consultation['consultado_em'] ?? '') . '</p>';
                 if (!empty($consultation['localizado'])) {
                     echo '<p>Estado informado pela K8: ' . esc_html($consultation['estado'] ?? '') . '</p><p>Transação consultada: ' . esc_html($consultation['transacao_id'] ?? '') . '</p>';
+                    if (isset($consultation['tipo_transacao'])) echo '<p>Tipo da transação: ' . esc_html($consultation['tipo_transacao']) . '</p>';
+                    if (isset($consultation['tipo_pagamento'])) echo '<p>Tipo de pagamento: ' . esc_html($consultation['tipo_pagamento']) . '</p>';
                     if (isset($consultation['valor'])) echo '<p>Valor da transação: ' . esc_html(self::currency((float) $consultation['valor'])) . '</p>';
                     if (isset($consultation['valor_pago'])) echo '<p>Valor pago informado pela K8: ' . esc_html(self::currency((float) $consultation['valor_pago'])) . '</p>';
                 } else echo '<p>Nenhuma transação aprovada e correspondente foi localizada na busca.</p>';

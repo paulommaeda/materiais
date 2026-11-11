@@ -2,7 +2,7 @@
 /**
  * Plugin Name: K8 Produtos, Alunos, Cobranças e Entregas
  * Description: Produtos com shortcode próprio, cobrança K8, cupons, estoque, entrega com assinatura e e-mails por produto.
- * Version: 2.8.4
+ * Version: 2.8.5
  * Plugin URI: https://github.com/paulommaeda/materiais
  * Update URI: https://github.com/paulommaeda/materiais/k8-produtos
  * Author: Paulo Maeda
@@ -16,7 +16,7 @@ namespace K8Produtos;
 
 defined('ABSPATH') || exit;
 
-define('K8PROD_VERSION', '2.8.4');
+define('K8PROD_VERSION', '2.8.5');
 define('K8PROD_FILE', __FILE__);
 define('K8PROD_DIR', __DIR__ . '/');
 

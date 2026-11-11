@@ -1,5 +1,13 @@
 # Alterações
 
+## Plugin 2.8.5
+
+- Confere o instrumento pelos campos Tipo e TipoPagamento do PAY, na consulta por ID e na busca automática. Um Tipo reconhecido pode confirmar cartão, Pix ou boleto mesmo quando TipoPagamento não está definido.
+- Mantém a recusa de instrumentos reconhecidos contraditórios e não confirma quando nenhum campo identifica um método suportado. Não deduz o significado de códigos numéricos pela posição dos enums.
+- Normaliza os rótulos de cartão de crédito e preserva todas as verificações de pedido, CPF, ID, estado e valores integrais antes de gravar Paga.
+- Mostra os dois campos de método no resumo administrativo e na mensagem de divergência, usando apenas rótulos seguros.
+- Reproduz a recusa por método e o descarte na busca do pacote 2.8.4; verifica recuperação manual e automática após atualizar, sem criar outra cobrança.
+
 ## Plugin 2.8.4
 
 - Recupera pedidos presos ao vínculo de uma tentativa antiga pendente, buscando uma aprovação única e correspondente antes de atualizar o mesmo pedido para Paga.

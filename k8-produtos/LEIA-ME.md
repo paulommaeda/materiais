@@ -1,4 +1,6 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.8.4
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.8.5
+
+A versão 2.8.5 confere **Tipo** e **TipoPagamento** na resposta PAY. Corrige a recusa de um instrumento já identificado quando o outro campo não está definido, tanto no vínculo por ID quanto na descoberta automática. [Divergência na forma de pagamento](CORRECAO-METODO-PAY.md).
 
 A versão 2.8.4 recupera pedidos presos a uma tentativa antiga pendente, confere a gravação do pagamento e exibe **Última consulta PAY** mesmo quando não há erro. [Pedido pago ainda pendente](CORRECAO-STATUS-PAY.md).
 

@@ -1,5 +1,13 @@
 # Validação
 
+## Versão 2.8.5 — Tipo e TipoPagamento
+
+Passaram 174 verificações PAY em WordPress 7.1.4, PHP 8.5.12 e MariaDB locais, com HTTP financeiro e e-mails simulados. O cenário Tipo=Cartao e TipoPagamento=naodefinido reproduziu a mesma mensagem de divergência por método da 2.8.4; após a correção confirmou o pagamento por ID e por busca automática. A resposta completa da conta de produção não foi recebida, portanto os valores exatos desses campos na conta não são presumidos.
+
+Os testes cobrem cartão, Pix e boleto com TipoPagamento não definido, confirmação pelo campo textual disponível, rótulos de cartão, conflito entre os campos, ausência de ambos, códigos numéricos sem interpretação presumida e diagnóstico sem CPF/valores arbitrários. O ID, o pedido, o pagador, o estado aprovado e os valores integrais continuam obrigatórios. O painel registra os campos usados e o status salvo.
+
+A fixture pay-method-upgrade.php executa o ZIP publicado 2.8.4 com dois pedidos fictícios: reproduz a recusa por método na consulta direta e o descarte silencioso na busca. Após a instalação nativa da atualização, confere o vínculo manual de um pedido, a busca automática do outro, o painel recarregado e a preservação dos dados, sem criar cobrança.
+
 ## Versão 2.8.4 — status e tentativa antiga pendente
 
 Passaram 152 verificações PAY e as 389 verificações anteriores em WordPress 7.1.4, PHP 8.5.12 e MariaDB local. As operações financeiras e os e-mails são simulados. Passaram também as 108 verificações JavaScript, a conferência de sintaxe e os cinco testes de integridade/imutabilidade dos pacotes.
