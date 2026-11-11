@@ -240,17 +240,22 @@ final class Service
             'entregas' => $wpdb->get_results($wpdb->prepare("SELECT semestre,status,entregue_em FROM $deliveries WHERE pedido_id = %d AND produto_id = %d ORDER BY semestre", $order->id, $order->produto_id))];
     }
 
-    public static function sync_order(int $product, int $id): object
+    public static function sync_order(int $product, int $id, ?string $transaction_hint = null): object
     {
-        return Support::lock('order:' . $id, static function () use ($product, $id) {
+        return Support::lock('order:' . $id, static function () use ($product, $id, $transaction_hint) {
             global $wpdb;
             $order = self::order($product, $id);
             if ($order->status_pagamento === 'Cancelada' || ($order->status_pagamento === 'Paga' && !PayPayments::is_pay($order))) {
                 return $order;
             }
             if (PayPayments::is_pay($order)) {
-                $update = PayPayments::synchronized($order);
-                self::apply_pay_update($order, $update);
+                try {
+                    $update = PayPayments::synchronized($order, $transaction_hint);
+                    self::apply_pay_update($order, $update);
+                } catch (\Throwable $e) {
+                    $wpdb->update(Support::table('pedidos'), ['erro_mensagem' => Support::diagnostic($e)], ['id' => $id]);
+                    throw $e;
+                }
                 return self::order($product, $id);
             }
             if (CardPayments::is_link($order) && $order->link_pagamento_id) {
@@ -510,7 +515,11 @@ final class Service
             $order = self::order($product, $id);
             if (PayPayments::is_pay($order)) {
                 if ($order->status_pagamento === 'Cancelada') throw new \InvalidArgumentException('Pedido cancelado: confira o histórico e a transação no PAY antes de conciliar.');
-                self::apply_pay_update($order, PayPayments::synchronized($order, $charge), $charge);
+                try { self::apply_pay_update($order, PayPayments::synchronized($order, $charge), $charge); }
+                catch (\Throwable $e) {
+                    $wpdb->update(Support::table('pedidos'), ['erro_mensagem' => 'Consulta da transação PAY ' . $charge . ': ' . Support::diagnostic($e)], ['id' => $id]);
+                    throw $e;
+                }
                 return;
             }
             if ($order->status !== 'verificacao' || $order->cobranca_id) {

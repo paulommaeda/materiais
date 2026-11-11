@@ -144,6 +144,25 @@ final class PayClient
         return $result;
     }
 
+    public static function valid_id($id): bool
+    {
+        return is_string($id) && (bool) preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iD', $id);
+    }
+
+    public function transactions(array $filters): array
+    {
+        $result = $this->request('POST', '/api/ConsultaTransacoes', $filters);
+        if (($result['Retorno'] ?? '') !== 'OK') throw $this->failure('POST', '/api/ConsultaTransacoes', 200, $result, $filters);
+        $items = $result['Transacoes'] ?? [];
+        if (!is_array($items) || count($items) > 1000) throw new \RuntimeException('A consulta PAY retornou uma lista inválida ou extensa. Use o ID da transação para conferir este pedido.');
+        return $items;
+    }
+
+    public function notification(string $raw): ?array
+    {
+        return strlen($raw) <= 131072 ? $this->decode($raw) : null;
+    }
+
     public function configuration(): array
     {
         return $this->request('GET', '/api/ParcelamentoConfiguracao');

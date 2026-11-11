@@ -1,5 +1,14 @@
 # Validação
 
+## Versão 2.8.3 — checkout e transação distintos
+
+A documentação PAY de callback fornece Identificador e IdentificadorCheckout como campos separados. Os testes agora proíbem consultar o ID do checkout como transação e usam IDs distintos em todos os meios. A referência e o número podem não estar disponíveis, desde que a descrição exata do pedido e os dados financeiros permitam a conferência.
+
+Passaram 130 verificações PAY, incluindo R$ 0,23 nos três métodos, descoberta por período e método, confirmação individual do ID encontrado, JSON/GET/callback cifrado, descrição congelada, vínculo de pedido anterior, campos divergentes identificados sem imprimir CPF, erro de API mascarado, múltiplas aprovações e tentativa cancelada seguida de aprovação em outro ID. São simulações financeiras em WordPress e MariaDB descartáveis, sem dados do pagador real nem acesso à conta K8 do usuário.
+
+A fixture pay-checkout-upgrade.php reproduz o erro de vínculo da 2.8.2 com CPF e valor corretos, número/referência ausentes e descrição exata. A verificação após atualizar deve preservar o pedido e recuperar seu pagamento sem criar outra cobrança.
+
+
 ## Versão 2.8.2 — confirmação e retorno PAY
 
 A versão 2.8.1 foi executada em WordPress e banco descartáveis com uma transação aprovada, consulta por referência recusada e consulta por ID disponível. Reproduziu-se a falha de referência não localizada. O pacote original usado nessa reprodução teve seu conteúdo conferido pelo SHA-256 da entrega anterior.

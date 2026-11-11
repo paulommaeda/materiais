@@ -1,4 +1,6 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.8.2
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.8.3
+
+A versão 2.8.3 separa checkout e pagamento, lê o ID real no callback e recupera pagamentos pela descrição validada do pedido quando a referência não é encontrada. [Guia de vínculo e recuperação](CORRECAO-VINCULO-PAY.md).
 
 A versão 2.8.2 acrescenta consulta PAY por ID, vínculo administrativo de transação existente, notificação assinada e página de retorno com confirmação consultada na API. Veja [como recuperar um pagamento já feito](CORRECAO-RETORNO-PAY.md).
 
@@ -17,7 +19,7 @@ Plugin e tema consultam atualizações no repositório público `paulommaeda/mat
 ## Instalação e migração
 
 1. Faça um backup do banco e teste o ZIP em uma cópia do seu WordPress.
-2. Em **Plugins → Adicionar plugin → Enviar plugin**, envie `k8-produtos-2.8.2.zip` e ative.
+2. Em **Plugins → Adicionar plugin → Enviar plugin**, envie `k8-produtos-2.8.3.zip` e ative.
 3. A ativação identifica e desativa os plugins antigos de pagamento, dashboard, materiais e Sistema de Alunos — Busca Direta pelos nomes exatos dos cabeçalhos. O arquivo do dashboard de estoque era um complemento e agora está incorporado. Não mantenha cópias dos arquivos antigos executando em tema, mu-plugin ou gerenciador de snippets.
 4. Se a tabela antiga de pedidos existir, os registros atuais são vinculados ao produto **Material Didático — legado**. Abra **K8 Produtos → Produtos e preços** para renomeá-lo, por exemplo, para “Material Didático 2027”.
 5. Em **K8 Produtos → Configurações**, confira o mapeamento de alunos e os endpoints K8. As credenciais COB existentes são preservadas; PAY exige credenciais próprias. Siga o [guia da migração PAY](MIGRACAO-PAY.md).

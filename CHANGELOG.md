@@ -1,5 +1,16 @@
 # Alterações
 
+## Plugin 2.8.3
+
+- Separa definitivamente ID de checkout e ID da transação; não consulta o checkout como se fosse um pagamento.
+- Lê Identificador/IdentificadorCheckout do callback PAY e o ID no GET de recuperação, usando-os apenas como pistas para consulta autenticada.
+- Recupera pagamentos por critérios de data/método e identificação do pedido, confirmando o ID real individualmente e recusando busca ambígua.
+- Aceita a descrição exata do pedido quando número/referência não foram retornados; mantém as verificações de pagador, valor integral, método, estado e ID.
+- Congela a descrição enviada e não prende o pedido ao identificador de uma tentativa não paga.
+- Detalha os campos divergentes e preserva erros de consulta/vínculo para administradores, com documentos e credenciais mascarados.
+- Testes com R$ 0,23, IDs distintos e payload oficial de callback; mantém a compra já paga sem emitir outra cobrança.
+
+
 ## Plugin 2.8.2
 
 - PAY para novos cartões, Pix e boletos pelo checkout hospedado v2; credenciais próprias para produção e testes. Pedidos e credenciais COB anteriores preservados.

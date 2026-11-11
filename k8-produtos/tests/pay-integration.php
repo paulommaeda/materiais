@@ -30,6 +30,16 @@ function pay_settings(array $extra = []) {
     foreach (Students::defaults() as $name => $value) $data['student_' . $name] = $value;
     return array_merge($data, $extra);
 }
+function pay_remote_response(array $remote): array {
+    $payload = $remote['payload'];
+    $method = isset($payload['Cartao']) ? 'cartao' : (isset($payload['Pix']) ? 'pix' : 'boleto');
+    return array_merge(['Retorno' => 'OK', 'Identificador' => $remote['transaction_id'],
+        'Referencia' => $remote['reference_visible'] ? $payload['Referencia'] : null,
+        'NumeroPedido' => ($remote['number_visible'] ?? $remote['reference_visible']) ? $payload['NumeroPedido'] : null,
+        'ClienteDescricao' => $payload['ClienteDescricao'], 'ClienteCPFCNPJ' => $payload['ClienteCPFCNPJ'],
+        'Valor' => $payload['Valor'], 'ValorPago' => in_array($remote['state'], ['Aprovada','Liquidado'], true) ? $payload['Valor'] : 0,
+        'TipoPagamento' => $method, 'Tipo' => ucfirst($method), 'Estado' => $remote['state']], $GLOBALS['pay_tamper']);
+}
 wp_set_current_user(get_user_by('login', 'k8admin')->ID);
 update_option('timezone_string', 'America/Sao_Paulo');
 update_option('k8p_client_id', 'cob-existing-id'); update_option('k8p_client_secret', 'cob-existing-secret'); update_option('k8p_aes_key', '1234567890123456');
@@ -70,8 +80,9 @@ add_filter('pre_http_request', static function ($pre, $args, $url) {
         else {
             $id = sprintf('10000000-0000-4000-8000-%012d', $GLOBALS['pay_posts']);
             $GLOBALS['pay_remote'][$data['Referencia']] = ['checkout_id' => $id, 'payload' => $data, 'state' => 'Pendente',
-                'transaction_id' => $GLOBALS['pay_mode'] === 'id_only' ? $id : sprintf('20000000-0000-4000-8000-%012d', $GLOBALS['pay_posts']),
-                'reference_visible' => !in_array($GLOBALS['pay_mode'], ['id_only', 'manual_only'], true)];
+                'transaction_id' => sprintf('20000000-0000-f111-91f2-%012d', $GLOBALS['pay_posts']),
+                'reference_visible' => !in_array($GLOBALS['pay_mode'], ['id_only', 'manual_only'], true),
+                'list_visible' => $GLOBALS['pay_mode'] !== 'manual_only'];
             if ($GLOBALS['pay_mode'] === 'timeout') return new WP_Error('fixture_timeout', 'Resposta perdida.');
             $response = ['Retorno' => 'OK', 'Identificador' => $id, 'URL' => ($GLOBALS['pay_mode'] === 'wrong_url' ? 'https://untrusted.invalid/' : ($sandbox ? 'https://sandbox.meuk8.com.br/' : 'https://pagamentos.meuk8.com.br/')) . 'checkout/' . $id];
         }
@@ -80,18 +91,21 @@ add_filter('pre_http_request', static function ($pre, $args, $url) {
             $remote = $GLOBALS['pay_remote'][$data['Referencia']] ?? null;
             if ($remote && !$remote['reference_visible']) $remote = null;
         } else {
+            if (array_filter($GLOBALS['pay_remote'], static fn($entry) => $entry['checkout_id'] === ($data['Identificador'] ?? ''))) throw new RuntimeException('ID do checkout não deve ser consultado como ID da transação.');
             $matches = array_values(array_filter($GLOBALS['pay_remote'], static fn($entry) => $entry['transaction_id'] === ($data['Identificador'] ?? '')));
             $remote = $matches[0] ?? null;
         }
-        if (!$remote) $response = ['Retorno' => 'ERRO', 'DetalhesErro' => 'Referência ou identificador da transação não localizado.'];
+        if (!empty($GLOBALS['pay_query_error'])) $response = ['Retorno' => 'ERRO', 'DetalhesErro' => $GLOBALS['pay_query_error']];
+        elseif (!$remote) $response = ['Retorno' => 'ERRO', 'DetalhesErro' => 'Referência ou identificador da transação não localizado.'];
         else {
-            $payload = $remote['payload'];
-            $method = isset($payload['Cartao']) ? 'cartao' : (isset($payload['Pix']) ? 'pix' : 'boleto');
-            $response = ['Retorno' => 'OK', 'Identificador' => $remote['transaction_id'], 'Referencia' => $remote['reference_visible'] ? $payload['Referencia'] : null, 'NumeroPedido' => $payload['NumeroPedido'],
-                'ClienteCPFCNPJ' => $payload['ClienteCPFCNPJ'], 'Valor' => $payload['Valor'], 'ValorPago' => in_array($remote['state'], ['Aprovada','Liquidado'], true) ? $payload['Valor'] : 0,
-                'TipoPagamento' => $method, 'Tipo' => ucfirst($method), 'Estado' => $remote['state']];
-            $response = array_merge($response, $GLOBALS['pay_tamper']);
+            $response = pay_remote_response($remote);
         }
+    } elseif ($path === '/PagamentosAPI/api/ConsultaTransacoes') {
+        if (($data['TipoFiltro'] ?? '') !== 'dataemissao' || !in_array($data['Tipo'] ?? '', ['Cartao','Pix','Boleto'], true) || empty($data['DataHoraInicial']) || empty($data['DataHoraFinal'])) throw new RuntimeException('Filtros de descoberta não correspondem ao contrato PAY.');
+        $GLOBALS['pay_last_filters'] = $data;
+        $GLOBALS['pay_list_calls'] = ($GLOBALS['pay_list_calls'] ?? 0) + 1;
+        $entries = array_filter($GLOBALS['pay_remote'], static fn($entry) => $entry['list_visible'] ?? true);
+        $response = ['Retorno' => 'OK', 'Transacoes' => array_merge(array_map('pay_remote_response', array_values($entries)), $GLOBALS['pay_list_extra'] ?? [])];
     } elseif ($path === '/PagamentosAPI/api/ParcelamentoConfiguracao' && $args['method'] === 'GET') $response = ['Retorno' => 'OK', 'HabilitarParcelamento' => true, 'QuantidadeMaximaParcelas' => 12];
     else throw new RuntimeException('Rota PAY não simulada: ' . $path);
     return ['headers' => [], 'body' => base64_encode(openssl_encrypt(wp_json_encode($response), 'AES-128-CBC', $aes, OPENSSL_RAW_DATA, str_repeat("\0", 16))), 'response' => ['code' => 200, 'message' => 'OK']];
@@ -293,7 +307,7 @@ $GLOBALS['pay_remote'][PayPayments::reference($id_order)]['state'] = 'Aprovada';
 pay_reject(fn() => (new PayClient('production'))->consult(PayPayments::reference($id_order)), 'reproduz referência não localizada mesmo após aprovação do cartão');
 $create_count = $GLOBALS['pay_posts'];
 $id_confirmed = Service::sync_order((int) $product->id, $id_order->id);
-pay_check($id_confirmed->status_pagamento === 'Paga' && $id_confirmed->pay_transacao_id === $id_order->pay_checkout_id && $GLOBALS['pay_posts'] === $create_count, 'consulta por ID confirma cartão sem referência e sem criar outro checkout');
+pay_check($id_confirmed->status_pagamento === 'Paga' && $id_confirmed->pay_transacao_id === $GLOBALS['pay_remote'][PayPayments::reference($id_order)]['transaction_id'] && $id_confirmed->pay_transacao_id !== $id_order->pay_checkout_id && $GLOBALS['pay_posts'] === $create_count, 'descoberta recupera o ID real do cartão sem referência, mantendo checkout separado e sem outra criação');
 pay_check(isset($return_payload['URLConfirmacao']) && strpos(rawurldecode($return_payload['URLConfirmacao']), '/pay/confirmacao/' . $id_order->id) !== false && strpos($return_payload['URLRetorno'], 'k8_pay_return=') !== false, 'novos checkouts recebem URL de confirmação e página de retorno vinculadas ao pedido');
 
 $GLOBALS['pay_mode'] = 'manual_only';
@@ -302,7 +316,7 @@ $manual_order = Service::order((int) $product->id, $manual['id']);
 $GLOBALS['pay_mode'] = 'normal';
 $manual_remote = &$GLOBALS['pay_remote'][PayPayments::reference($manual_order)];
 $manual_remote['state'] = 'Aprovada';
-pay_reject(fn() => Service::sync_order((int) $product->id, $manual_order->id), 'identificador final distinto e referência ausente não são adivinhados');
+pay_check(Service::sync_order((int) $product->id, $manual_order->id)->status_pagamento === 'Pendente', 'pagamento ausente da busca permanece pendente, sem adivinhar ID');
 foreach ([['NumeroPedido' => 'K8P-outro'], ['ClienteCPFCNPJ' => '11144477735'], ['ValorPago' => 1], ['TipoPagamento' => 'pix'], ['Identificador' => 'ffffffff-ffff-4fff-8fff-ffffffffffff']] as $wrong) {
     $GLOBALS['pay_tamper'] = $wrong;
     pay_reject(fn() => Service::reconcile((int) $product->id, $manual_order->id, $manual_remote['transaction_id']), 'vínculo manual recusa divergência de ' . key($wrong));
@@ -344,5 +358,120 @@ $call_count = count($GLOBALS['pay_calls']);
 PayReturn::prepare_return();
 pay_check(strpos(PayReturn::render(), 'Retorno não identificado') !== false && count($GLOBALS['pay_calls']) === $call_count, 'retorno sem assinatura não consulta nem revela situação do pedido');
 $_GET = [];
+
+// Checkout e pagamento sempre têm IDs distintos; a API pode preservar só a descrição do pedido.
+$small_product_id = pay_mutate('save_product', 0, ['nome' => 'Material de teste de retorno', 'turmas' => ['5 A'], 'valor_padrao' => '0.23', 'ativo' => 1, 'publicado' => 1,
+    'etapas' => 1, 'vencimento_dias' => 5, 'formas_pagamento' => ['Pix','Boleto','Cartao'], 'cartao_parcelas' => 12])['produto_id'];
+$small_product = S::product($small_product_id);
+foreach (['Cartao','Pix','Boleto'] as $method) {
+    $GLOBALS['pay_mode'] = 'id_only';
+    $public = pay_start($small_product, 'DISCOVER-' . $method, $method, $method === 'Boleto' ? pay_address() : []);
+    $stored = Service::order($small_product_id, $public['id']);
+    $GLOBALS['pay_mode'] = 'normal';
+    $GLOBALS['pay_remote'][PayPayments::reference($stored)]['state'] = 'Aprovada';
+    $before = $GLOBALS['pay_posts'];
+    $found = Service::sync_order($small_product_id, $stored->id);
+    pay_check($found->status_pagamento === 'Paga' && $found->pay_transacao_id !== $found->pay_checkout_id && (float) $found->valor === 0.23 && $GLOBALS['pay_posts'] === $before, 'recuperação automática de ' . $method . ' R$0,23 usa transação real, descrição do pedido e nenhum novo checkout');
+}
+
+$GLOBALS['pay_mode'] = 'manual_only';
+$callback = pay_start($small_product, 'REAL-CALLBACK', 'Cartao');
+$callback = Service::order($small_product_id, $callback['id']);
+$GLOBALS['pay_mode'] = 'normal';
+$entry = &$GLOBALS['pay_remote'][PayPayments::reference($callback)];
+$real_id = $entry['transaction_id'];
+pay_check($real_id !== $callback->pay_checkout_id && $callback->pay_descricao === $entry['payload']['ClienteDescricao'], 'descrição enviada fica congelada e IDs de checkout e transação não são confundidos');
+function pay_official_callback($server, $order, $transaction_id, $checkout_id, $encoding = 'json') {
+    $request = new WP_REST_Request('POST', '/k8-produtos/v1/pay/confirmacao/' . $order->id);
+    $request->set_query_params(['token' => PayReturn::token($order)]);
+    $body = ['Identificador' => $transaction_id, 'IdentificadorCheckout' => $checkout_id, 'Estado' => 'Aprovada', 'ValorPago' => 999999, 'NumeroPedido' => 'forjado'];
+    if ($encoding === 'encrypted') {
+        $request->set_header('Content-Type', 'text/plain');
+        $request->set_body(base64_encode(openssl_encrypt(wp_json_encode($body), 'AES-128-CBC', 'abcdefghijklmnop', OPENSSL_RAW_DATA, str_repeat("\0", 16))));
+    } else {
+        $request->set_header('Content-Type', 'application/json');
+        $request->set_body(wp_json_encode($body));
+    }
+    return $server->dispatch($request);
+}
+$lists_before = $GLOBALS['pay_list_calls'];
+$calls_before = count($GLOBALS['pay_calls']);
+$wrong_checkout = pay_official_callback($server, $callback, $real_id, 'ffffffff-ffff-4fff-8fff-ffffffffffff');
+pay_check($wrong_checkout->get_status() === 503 && count($GLOBALS['pay_calls']) === $calls_before, 'callback de checkout diferente é rejeitado antes de consultar a transação');
+$pending_callback = pay_official_callback($server, $callback, $real_id, $callback->pay_checkout_id);
+$pending_stored = Service::order($small_product_id, $callback->id);
+pay_check($pending_callback->get_status() === 200 && $pending_stored->status_pagamento === 'Pendente' && $pending_stored->pay_transacao_id === null, 'callback com ID real consulta a API e não vincula tentativa pendente como pagamento final');
+$entry['state'] = 'Aprovada';
+$before = $GLOBALS['pay_posts'];
+$paid_callback = pay_official_callback($server, $callback, $real_id, $callback->pay_checkout_id);
+pay_check($paid_callback->get_status() === 200 && $paid_callback->get_data()['pagamento'] === 'Paga' && $GLOBALS['pay_list_calls'] === $lists_before && $GLOBALS['pay_posts'] === $before, 'payload oficial confirma pelo Identificador real, sem buscar por checkout, sem confiar no valor do aviso e sem criar pagamento');
+
+$GLOBALS['pay_mode'] = 'manual_only';
+$get_order = pay_start($small_product, 'GET-RETRY', 'Pix');
+$get_order = Service::order($small_product_id, $get_order['id']);
+$GLOBALS['pay_mode'] = 'normal';
+$get_entry = &$GLOBALS['pay_remote'][PayPayments::reference($get_order)]; $get_entry['state'] = 'Aprovada';
+$request = new WP_REST_Request('GET', '/k8-produtos/v1/pay/confirmacao/' . $get_order->id);
+$request->set_query_params(['token' => PayReturn::token($get_order), 'id' => $get_entry['transaction_id']]);
+pay_check($server->dispatch($request)->get_data()['pagamento'] === 'Paga', 'GET de recuperação lê o ID da transação sem confundi-lo com o ID do pedido na rota');
+
+$GLOBALS['pay_mode'] = 'manual_only';
+$encrypted = pay_start($small_product, 'ENCRYPTED-CALLBACK', 'Boleto', pay_address());
+$encrypted = Service::order($small_product_id, $encrypted['id']);
+$GLOBALS['pay_mode'] = 'normal';
+$encrypted_entry = &$GLOBALS['pay_remote'][PayPayments::reference($encrypted)]; $encrypted_entry['state'] = 'Aprovada';
+pay_check(pay_official_callback($server, $encrypted, $encrypted_entry['transaction_id'], $encrypted->pay_checkout_id, 'encrypted')->get_data()['pagamento'] === 'Paga', 'aviso cifrado fornece somente a pista do ID e a consulta autenticada confirma o pagamento');
+
+$GLOBALS['pay_mode'] = 'manual_only';
+$legacy = pay_start($small_product, 'LEGACY-DESCRIPTION', 'Cartao'); $legacy = Service::order($small_product_id, $legacy['id']);
+$GLOBALS['pay_mode'] = 'normal';
+$legacy_entry = &$GLOBALS['pay_remote'][PayPayments::reference($legacy)]; $legacy_entry['state'] = 'Aprovada';
+$wpdb->update(S::table('pedidos'), ['pay_descricao' => null], ['id' => $legacy->id]);
+Service::reconcile($small_product_id, $legacy->id, $legacy_entry['transaction_id']);
+pay_check(Service::order($small_product_id, $legacy->id)->status_pagamento === 'Paga', 'pedido anterior sem snapshot aceita vínculo pelo ID quando a descrição exata, CPF e valores conferem');
+
+$GLOBALS['pay_mode'] = 'manual_only';
+$invalid = pay_start($small_product, 'DIAGNOSE-FIELDS', 'Cartao'); $invalid = Service::order($small_product_id, $invalid['id']);
+$GLOBALS['pay_mode'] = 'normal';
+$invalid_entry = &$GLOBALS['pay_remote'][PayPayments::reference($invalid)]; $invalid_entry['state'] = 'Aprovada';
+$GLOBALS['pay_tamper'] = ['ClienteDescricao' => 'Outro material — Pedido #9999'];
+$description_error = pay_reject(fn() => Service::reconcile($small_product_id, $invalid->id, $invalid_entry['transaction_id']), 'mesmo CPF e valor sem identificação do pedido não bastam para liberar entrega');
+pay_check(strpos($description_error->getMessage(), 'identificação do pedido') !== false && Service::order($small_product_id, $invalid->id)->status_pagamento !== 'Paga', 'diagnóstico informa o campo ausente e conserva bloqueio');
+$GLOBALS['pay_tamper'] = ['ClienteCPFCNPJ' => '11144477735'];
+$cpf_error = pay_reject(fn() => Service::reconcile($small_product_id, $invalid->id, $invalid_entry['transaction_id']), 'descrição correta não libera pagamento de CPF divergente');
+pay_check(strpos($cpf_error->getMessage(), 'CPF do pagador') !== false && strpos(Service::order($small_product_id, $invalid->id)->erro_mensagem, '11144477735') === false, 'erro administrativo identifica CPF divergente sem imprimir o documento');
+$GLOBALS['pay_tamper'] = [];
+$GLOBALS['pay_query_error'] = 'Falha privada de teste pay-production-secret 52998224725';
+$private_error = pay_reject(fn() => Service::reconcile($small_product_id, $invalid->id, $invalid_entry['transaction_id']), 'recusa da API em vínculo manual é preservada no diagnóstico administrativo');
+$private_detail = Service::order($small_product_id, $invalid->id)->erro_mensagem;
+pay_check(strpos($private_detail, 'POST /api/ConsultaTransacao') !== false && strpos($private_detail, 'Falha privada de teste') !== false && strpos($private_detail, 'pay-production-secret') === false && strpos($private_detail, '52998224725') === false && strpos($private_error->getMessage(), 'Falha privada') === false, 'diagnóstico guarda rota e mensagem mascaradas, enquanto erro público fica genérico');
+$GLOBALS['pay_query_error'] = null;
+
+$GLOBALS['pay_mode'] = 'id_only';
+$duplicate = pay_start($small_product, 'AMBIGUOUS-PAYMENTS', 'Cartao'); $duplicate = Service::order($small_product_id, $duplicate['id']);
+$GLOBALS['pay_mode'] = 'normal';
+$dup_entry = &$GLOBALS['pay_remote'][PayPayments::reference($duplicate)]; $dup_entry['state'] = 'Aprovada';
+$second_paid = pay_remote_response($dup_entry); $second_paid['Identificador'] = 'dddddddd-dddd-f111-91f2-000000000012';
+$GLOBALS['pay_list_extra'] = [$second_paid];
+pay_reject(fn() => Service::sync_order($small_product_id, $duplicate->id), 'duas transações aprovadas para o mesmo pedido exigem conferência, sem escolher a primeira');
+pay_check(Service::order($small_product_id, $duplicate->id)->status_pagamento !== 'Paga', 'busca ambígua não grava pagamento');
+$GLOBALS['pay_list_extra'] = [];
+
+$GLOBALS['pay_mode'] = 'id_only';
+$retry = pay_start($small_product, 'RETRY-CARD', 'Cartao'); $retry = Service::order($small_product_id, $retry['id']);
+$GLOBALS['pay_mode'] = 'normal';
+$retry_entry = &$GLOBALS['pay_remote'][PayPayments::reference($retry)]; $retry_entry['state'] = 'Cancelada';
+$still_pending = Service::sync_order($small_product_id, $retry->id);
+pay_check($still_pending->status_pagamento === 'Pendente' && $still_pending->pay_transacao_id === null && $still_pending->active_key !== null, 'tentativa não paga cancelada não encerra nem libera o checkout para compra duplicada');
+$new_attempt = $retry_entry; $new_attempt['state'] = 'Aprovada'; $new_attempt['transaction_id'] = 'eeeeeeee-eeee-f111-91f2-000000000012';
+$GLOBALS['pay_remote']['retry-final'] = $new_attempt;
+pay_check(Service::sync_order($small_product_id, $retry->id)->pay_transacao_id === $new_attempt['transaction_id'], 'nova tentativa aprovada no mesmo checkout é descoberta pelo ID final, sem se prender ao ID da tentativa cancelada');
+
+$GLOBALS['pay_mode'] = 'id_only';
+$renamed = pay_start($small_product, 'RENAMED-PRODUCT', 'Cartao'); $renamed = Service::order($small_product_id, $renamed['id']);
+$GLOBALS['pay_mode'] = 'normal';
+$GLOBALS['pay_remote'][PayPayments::reference($renamed)]['state'] = 'Aprovada';
+$wpdb->update(S::table('produtos'), ['nome' => 'Nome alterado depois da compra'], ['id' => $small_product_id]);
+pay_check(Service::sync_order($small_product_id, $renamed->id)->status_pagamento === 'Paga', 'renomear produto não altera a descrição enviada e não impede a confirmação do checkout anterior');
 pay_check($wpdb->last_error === '', 'validação termina sem erro SQL');
 echo "$checks verificações de integração PAY aprovadas.\n";

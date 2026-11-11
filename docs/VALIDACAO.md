@@ -1,3 +1,7 @@
+# Validação da versão 2.8.3
+
+130 verificações PAY com IDs distintos, descrição do pedido como identificação alternativa, notificação oficial com dois IDs, GET de recuperação, dados divergentes e busca ambígua. Também passaram novamente 389 verificações das funções anteriores, sete da atualização 2.8.2 → 2.8.3, 108 JavaScript, cinco de integridade de pacotes e a sintaxe de 39 arquivos PHP e dois JavaScript. O instalador nativo preservou o pedido e confirmou o mesmo pagamento simulado de R$ 0,23 sem nova cobrança. A fixture de atualização reproduz o erro na 2.8.2 sem criar outra cobrança. Todas as chamadas financeiras usam respostas simuladas; o pagamento da conta do usuário não foi consultado por este processo de desenvolvimento. [Relatório do plugin](../k8-produtos/VALIDACAO.md).
+
 # Validação da versão 2.8.2
 
 Validação local: 505 verificações de integração/atualização (389 das funções anteriores, 109 PAY e 7 da atualização de 2.8.1), 108 JavaScript, sintaxe de 38 arquivos PHP e dois JavaScript, instalação pelo WordPress e três respostas HTTP da página de retorno. Os pagamentos e e-mails são simulados; não houve acesso à conta K8 de produção. [Relatório do plugin](../k8-produtos/VALIDACAO.md).

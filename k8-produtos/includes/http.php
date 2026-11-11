@@ -117,6 +117,7 @@ final class Http
         if (!check_ajax_referer('k8prod_manage', 'nonce', false)) {
             wp_send_json_error(['message' => 'Atualize a página para continuar.'], 403);
         }
+        $authorized = false;
         try {
             $data = wp_unslash($_POST);
             $op = Support::text($data, 'op');
@@ -131,10 +132,11 @@ final class Http
             if ($id) {
                 Support::product($id);
             }
+            $authorized = true;
             $result = self::mutate($op, $id, $data);
             wp_send_json_success(array_merge(['message' => 'Alteração salva.'], $result));
         } catch (\Throwable $e) {
-            wp_send_json_error(['message' => $e->getMessage()], 400);
+            wp_send_json_error(['message' => $authorized ? Support::diagnostic($e) : $e->getMessage()], 400);
         }
     }
 

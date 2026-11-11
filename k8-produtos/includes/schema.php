@@ -138,6 +138,7 @@ final class Schema
                     link_pagamento_id varchar(50) DEFAULT NULL,
                     pay_checkout_id varchar(50) DEFAULT NULL,
                     pay_transacao_id varchar(50) DEFAULT NULL,
+                    pay_descricao text DEFAULT NULL,
                     pagamento_ambiente varchar(12) DEFAULT NULL,
                     pay_comprador longtext DEFAULT NULL,
                     checkout_url text DEFAULT NULL,

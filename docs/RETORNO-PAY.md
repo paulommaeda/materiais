@@ -1,33 +1,27 @@
-# K8 Produtos 2.8.2 — confirmação e retorno PAY
+# K8 Produtos 2.8.3 — vínculo entre checkout e transação paga
 
-Esta atualização corrige uma limitação da consulta de pagamento: a versão anterior dependia somente de `ConsultaTransacaoReferencia`. Quando o PAY não encontra essa referência, o plugin não consegue confirmar o pagamento, mesmo que o cartão já tenha sido aprovado.
+O checkout e o pagamento aprovado têm identificadores próprios. A versão 2.8.2 ainda tentava consultar o ID do checkout como transação e descartava o identificador enviado na notificação. Também exigia número e referência na resposta, mesmo quando a descrição preservava a identificação do pedido.
 
-A versão 2.8.2 consulta primeiro o identificador da transação já vinculada ou o identificador recebido na criação do checkout, pelo método documentado `ConsultaTransacao`. A consulta por referência continua disponível quando o identificador inicial ainda não é consultável. A confirmação exige resposta autenticada do PAY e correspondência de identificador, número do pedido, comprador, valor integral e forma de pagamento. Uma referência ausente na resposta é aceita somente na consulta por ID com as demais correspondências verificadas.
+## Recuperar a compra já paga
 
-## Recuperar o pedido que já foi pago
+1. Preserve o pedido existente. Não cancele nem faça outro pagamento para corrigir a confirmação.
+2. No WordPress, use **K8 Produtos → Configurações → Verificar atualizações** e instale a **2.8.3** em **Painel → Atualizações**.
+3. No pedido pago, clique em **Consultar este pedido**. A consulta procura a transação efetiva e confere seus dados antes de registrá-la no mesmo pedido. O ID do checkout continua separado do ID do pagamento.
+4. A opção **Vincular transação PAY existente** continua disponível. Informe o ID da transação aprovada mostrado no PAY, e não o ID do checkout. A conferência aceita a descrição exata do pedido quando número e referência não foram devolvidos, mantendo as verificações de CPF, valor, método, estado e identificador.
+5. Se houver divergência, a mensagem passa a indicar quais campos precisam ser conferidos, sem mostrar os valores dos documentos. Uma recusa da API guarda o método, a rota e o detalhe mascarado em **Detalhes da tentativa** e na resposta administrativa. O erro público continua genérico.
 
-1. Mantenha o pedido existente. **Não cancele essa compra nem pague novamente para corrigir o retorno.**
-2. Faça backup e instale `k8-produtos-2.8.2.zip` em **Plugins → Adicionar plugin → Enviar plugin**, substituindo a versão atual. Pedidos, checkout, referências, credenciais, ambiente e limites de parcelas são preservados.
-3. No produto, abra **Pedidos → Consultar este pedido** na compra já paga. A atualização passa a tentar a consulta pelo ID que já está salvo, sem criar outro pagamento.
-4. Se a consulta ainda não localizar a operação, abra **Vincular transação PAY existente**. No painel PAY, localize o pagamento correto e copie seu **ID da transação (UUID)** para esse campo. Clique em **Conferir e vincular transação PAY**. Use o identificador da transação aprovada, não a referência da loja. O plugin só confirma o vínculo depois de consultar o PAY e validar os dados.
-5. Após a conferência positiva, o mesmo pedido passa a **Paga** e pode seguir para a entrega. Se a validação apontar divergência, mantenha o pedido em conferência e encaminhe à secretaria os detalhes da tentativa; não marque como pago apenas com base no retorno do navegador.
+## Busca e notificação automáticas
 
-O ID do checkout e o ID da transação vinculada ficam visíveis na administração para ajudar a comparar com o painel PAY. Não é necessário enviar chaves, token ou dados do cartão pelo chat.
+Quando a referência não é encontrada, o plugin usa `ConsultaTransacoes` com intervalo de datas e tipo de pagamento. Só escolhe uma transação aprovada quando a identificação do pedido, o pagador, o valor integral e o método correspondem. A consulta individual pelo ID real verifica novamente a transação antes da confirmação. Duas aprovações para o mesmo pedido exigem conferência; o plugin não escolhe a primeira.
 
-## Novas compras
+A busca usa períodos de até 31 dias: para pedidos antigos consulta o período inicial e o período recente. Se a operação não estiver nesses períodos ou a lista exceder o limite de segurança, use o ID da transação no vínculo administrativo. Não há busca por CPF e valor isoladamente.
 
-Novos checkouts recebem uma `URLConfirmacao` própria e um retorno à loja vinculado ao pedido por assinatura. A notificação e a volta do comprador provocam uma consulta autenticada ao PAY; o corpo do aviso não tem autoridade para declarar que o pagamento está aprovado.
+A descrição enviada é registrada no pedido. Renomear o produto depois da compra não muda essa descrição. Pedidos anteriores ainda sem esse registro podem ser conferidos pela descrição do produto correspondente; se houve mudança de nome antes da atualização, confira a identificação retornada pelo PAY com a secretaria.
 
-A nova página de retorno mostra **Pagamento confirmado** quando a consulta confirmar o pagamento. Caso contrário, mostra **Pagamento em conferência**, com opção de atualizar a confirmação e voltar à loja. Ela não exibe dados pessoais do comprador ou do aluno.
+O callback PAY documenta `Identificador` (transação) e `IdentificadorCheckout` (checkout). A versão 2.8.3 lê o ID recebido em JSON, formulário ou GET de recuperação; avisos cifrados compatíveis com a chave AES também podem fornecer a pista do ID. Um checkout explicitamente diferente é recusado. Esses dados servem apenas para localizar a operação: aprovação, CPF e valores são sempre conferidos pela consulta autenticada à API.
 
-Os checkouts criados na 2.8.1 conservam a URL de retorno original já registrada na K8. A atualização não modifica nem recria esses checkouts. Para o pagamento já feito, use a consulta ou o vínculo pelo ID descritos acima. A nova página e a notificação passam a ser enviadas nos próximos checkouts.
+Uma tentativa de cartão pendente, rejeitada ou cancelada não é gravada como pagamento final nem libera automaticamente outra compra. Se houver outra tentativa aprovada no mesmo checkout, a busca considera seu ID próprio. Um pagamento já vinculado não é trocado silenciosamente por outra transação.
 
-A confirmação automática depende de o servidor do WordPress receber as chamadas e conseguir consultar a API PAY. Se houver bloqueio no firewall ou no serviço de hospedagem, a consulta administrativa e o WP-Cron continuam disponíveis. O parcelamento por data, inclusive 12x quando vigente, permanece registrado em cada pedido.
+Os testes usam identidades fictícias e respostas K8 simuladas, incluindo compra de R$ 0,23, IDs distintos e ausência de número/referência com descrição correta. Isso não confirma que a compra específica da conta de produção já está conciliada; após atualizar, consulte o pedido no site.
 
-## Validação
-
-O erro de referência não localizada foi reproduzido com a versão 2.8.1 e respostas PAY simuladas, embora a transação correspondente estivesse aprovada e disponível por ID. Os testes da correção cobrem confirmação por ID, vínculo manual com validação, assinatura inválida, aviso de pagamento forjado, notificações repetidas, página de retorno sem dados pessoais e preservação das funções anteriores. Não houve acesso à conta K8 do usuário nem novo pagamento real.
-
-A causa interna de a K8 não localizar a referência na conta de produção não foi demonstrada. A atualização acrescenta as consultas e o vínculo que permitem recuperar o pagamento existente sem depender exclusivamente dessa referência.
-
-Referências oficiais: [consulta por identificador](https://docs.meuk8.com.br/reference/consultatransacao_consultatransacao_consultatransacao_post), [consulta por referência](https://docs.meuk8.com.br/reference/consultatransacao_consultatransacaoreferencia_consultatransacaoreferencia_post) e [contrato do checkout PAY v2](https://pagamentos.meuk8.com.br/PagamentosAPI/swagger/docs/v1).
+Documentação oficial: [callback PAY](https://docs.meuk8.com.br/docs/payload-callback), [consulta por critérios](https://docs.meuk8.com.br/reference/consultatransacoes_consultatransacoes_consultatransacoes_post) e [consulta por identificador](https://docs.meuk8.com.br/reference/consultatransacao_consultatransacao_consultatransacao_post).

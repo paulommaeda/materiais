@@ -44,10 +44,25 @@ final class PayReturn
         return self::authorized((int) ($path['id'] ?? 0), $request->get_param('token')) ? true : new \WP_Error('k8_pay_return_invalid', 'Link de confirmação inválido.', ['status' => 403]);
     }
 
-    private static function sync(object $order): object
+    private static function hint(object $order, array $payload): ?string
+    {
+        $values = [];
+        foreach ($payload as $key => $value) if (is_string($key)) $values[strtolower($key)] = $value;
+        $checkout = $values['identificadorcheckout'] ?? $values['indentificadorcheckout'] ?? null;
+        if ($checkout !== null && $checkout !== '' && (!PayClient::valid_id($checkout) || !$order->pay_checkout_id || strcasecmp($checkout, $order->pay_checkout_id) !== 0)) throw new \RuntimeException('O ID do checkout recebido na notificação não corresponde a este pedido.');
+        foreach (['identificador', 'idtransacao', 'transacaoid', 'id'] as $key) if (PayClient::valid_id($values[$key] ?? null)) return $values[$key];
+        return null;
+    }
+
+    private static function sync(object $order, array $payload = []): object
     {
         try {
-            return Service::sync_order((int) $order->produto_id, (int) $order->id);
+            $hint = self::hint($order, $payload);
+            try { return Service::sync_order((int) $order->produto_id, (int) $order->id, $hint); }
+            catch (PayException $e) {
+                if ($hint === null) throw $e;
+                return Service::sync_order((int) $order->produto_id, (int) $order->id);
+            }
         } catch (\Throwable $e) {
             global $wpdb;
             $wpdb->update(Support::table('pedidos'), ['erro_mensagem' => Support::diagnostic($e)], ['id' => $order->id]);
@@ -62,8 +77,11 @@ final class PayReturn
         $order = self::authorized((int) ($path['id'] ?? 0), $request->get_param('token'));
         if (!$order) return new \WP_Error('k8_pay_return_invalid', 'Link de confirmação inválido.', ['status' => 403]);
         try {
-            // Estado, valor e comprador enviados no callback nunca confirmam pagamento.
-            $order = self::sync($order);
+            $payload = $request->get_json_params();
+            if (!is_array($payload)) $payload = (new PayClient($order->pagamento_ambiente))->notification((string) $request->get_body()) ?? [];
+            $payload = array_merge($request->get_query_params(), $request->get_body_params(), $payload);
+            // IDs são pistas para a consulta; estado, valor e comprador do aviso não confirmam pagamento.
+            $order = self::sync($order, $payload);
             return rest_ensure_response(['pedido' => (int) $order->id, 'pagamento' => $order->status_pagamento ?: 'Pendente']);
         } catch (\Throwable $e) {
             return new \WP_Error('k8_pay_lookup_pending', 'A confirmação aguarda consulta ao PAY. Preserve o pedido e tente consultar novamente.', ['status' => 503]);
@@ -84,7 +102,7 @@ final class PayReturn
         $order = self::authorized($id, $token);
         self::$view = ['valid' => false, 'paid' => false, 'cancelled' => false, 'retry' => null, 'store' => home_url('/')];
         if ($order) {
-            try { $order = self::sync($order); } catch (\Throwable $e) { /* Mensagem pública genérica, diagnóstico no painel. */ }
+            try { $order = self::sync($order, wp_unslash($_GET)); } catch (\Throwable $e) { /* Mensagem pública genérica, diagnóstico no painel. */ }
             self::$view = ['valid' => true, 'paid' => $order->status_pagamento === 'Paga', 'cancelled' => $order->status_pagamento === 'Cancelada',
                 'retry' => self::urls($order)['URLRetorno'], 'store' => Storefront::url((int) $order->produto_id)];
         }

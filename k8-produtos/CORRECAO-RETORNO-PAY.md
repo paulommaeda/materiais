@@ -1,5 +1,7 @@
 # K8 Produtos 2.8.2 — confirmação e retorno PAY
 
+> Guia histórico da 2.8.2. A consulta que confundia checkout e transação foi substituída na 2.8.3. Use o [guia de vínculo atual](CORRECAO-VINCULO-PAY.md) para recuperar um pagamento já feito.
+
 Esta atualização corrige uma limitação da consulta de pagamento: a versão anterior dependia somente de `ConsultaTransacaoReferencia`. Quando o PAY não encontra essa referência, o plugin não consegue confirmar o pagamento, mesmo que o cartão já tenha sido aprovado.
 
 A versão 2.8.2 consulta primeiro o identificador da transação já vinculada ou o identificador recebido na criação do checkout, pelo método documentado `ConsultaTransacao`. A consulta por referência continua disponível quando o identificador inicial ainda não é consultável. A confirmação exige resposta autenticada do PAY e correspondência de identificador, número do pedido, comprador, valor integral e forma de pagamento. Uma referência ausente na resposta é aceita somente na consulta por ID com as demais correspondências verificadas.

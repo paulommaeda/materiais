@@ -1,4 +1,4 @@
-# K8 Produtos 2.8.2 — migração para o PAY
+# K8 Produtos 2.8.3 — migração para o PAY
 
 Esta versão permite usar **K8 PAY em novas compras de cartão, Pix e boleto**, pelo checkout hospedado v2. Pedidos antigos continuam no COB, com seus valores, referências e limites de parcelas. A instalação não muda o provedor automaticamente.
 
@@ -6,7 +6,7 @@ Esta versão permite usar **K8 PAY em novas compras de cartão, Pix e boleto**, 
 
 1. Faça backup dos arquivos e do banco do WordPress. Valide primeiro em uma cópia do site.
 2. **Mantenha o ambiente atual do COB durante a atualização.** As versões anteriores não guardavam o ambiente por pedido; a atualização registra o ambiente em uso nos pedidos COB existentes. Para este site, que está em produção, mantenha Produção marcada ao instalar.
-3. Em **Plugins → Adicionar plugin → Enviar plugin**, envie `k8-produtos-2.8.2.zip` e escolha substituir a versão atual. Não exclua pedidos nem recrie produtos. O tema não precisa ser atualizado para esta migração. Se já pagou e a consulta não localiza a referência, siga [a recuperação do pagamento existente](CORRECAO-RETORNO-PAY.md). O guia da [referência longa da 2.8.0](CORRECAO-REFERENCIA-PAY.md) se aplica somente àquela recusa de criação, antes do pagamento.
+3. Em **Plugins → Adicionar plugin → Enviar plugin**, envie `k8-produtos-2.8.3.zip` e escolha substituir a versão atual. Não exclua pedidos nem recrie produtos. O tema não precisa ser atualizado para esta migração. Se já pagou e a consulta não localiza a referência, siga [a recuperação do pagamento existente](CORRECAO-VINCULO-PAY.md). O guia da [referência longa da 2.8.0](CORRECAO-REFERENCIA-PAY.md) se aplica somente àquela recusa de criação, antes do pagamento.
 4. Abra **K8 Produtos → Configurações**. Em **K8 PAY**, preencha as três credenciais próprias do ambiente desejado: Client ID, Client Secret e chave AES. Os campos de Produção e Testes são separados. Campos vazios preservam as credenciais salvas; os segredos não aparecem preenchidos.
 5. Em **Novas compras → Provedor de pagamento**, selecione **K8 PAY — checkout hospedado v2**, escolha o ambiente e salve. Preserve as credenciais COB para consultar o histórico. Não troque somente os endereços da API COB para PAY.
 6. Use **Verificar conexão PAY** depois de salvar. A verificação consulta a configuração de parcelamento da conta; não cria pagamento e não altera os limites da K8. Ela confirma acesso à consulta, mas não substitui os testes dos três meios de pagamento.
@@ -36,7 +36,7 @@ Depois da homologação, cadastre as credenciais PAY de produção, marque Produ
 
 **O pedido #6 e as outras tentativas anteriores não são convertidos para PAY.** O plugin preserva a compra ativa do aluno para impedir duas cobranças. Antes de tentar novamente pelo PAY para o mesmo aluno e produto, confira no COB se existe cobrança ou link pagável. Encerre a operação existente ou, se não houve criação, registre o cancelamento da tentativa no plugin com o motivo e a confirmação de conferência exigida na tela. Depois disso a nova compra usa PAY.
 
-Nos novos pedidos PAY, a aba Pedidos identifica provedor e ambiente e apresenta uma referência UUID de 36 caracteres. Os pedidos criados na 2.8.0 mantêm suas referências `K8PAY-ID-...`. Use **Consultar este pedido** para buscar o pagamento pelo ID salvo ou, quando aplicável, pela referência. A opção **Vincular transação PAY existente** permite informar o ID da transação já aprovada para conferência pela API, quando a referência não for localizada. O retorno do navegador não confirma sozinho o pagamento: a confirmação depende da consulta feita pelo servidor.
+Nos novos pedidos PAY, a aba Pedidos identifica provedor e ambiente e apresenta uma referência UUID de 36 caracteres. Os pedidos criados na 2.8.0 mantêm suas referências `K8PAY-ID-...`. Use **Consultar este pedido** para buscar a transação real pelo ID vinculado, pela referência ou pelos critérios do pedido. O ID do checkout não é usado como ID da transação. A opção **Vincular transação PAY existente** permite informar o ID da transação já aprovada para conferência pela API, quando a referência não for localizada. O retorno do navegador não confirma sozinho o pagamento: a confirmação depende da consulta feita pelo servidor.
 
 Se a criação perder a resposta, não faça um novo pagamento por fora para contornar a trava. Localize a referência no painel PAY e consulte a situação no plugin. O plugin consegue reconhecer um pagamento pela referência mesmo sem ter recebido o identificador inicial do checkout.
 
@@ -71,4 +71,4 @@ Os testes usam WordPress, PHP e MariaDB locais, com respostas financeiras e e-ma
 
 Não reduza a versão do plugin depois de criar pedidos PAY. Para pausar novas vendas pelo PAY, selecione COB nas configurações e mantenha a versão 2.8.2 para administrar o histórico dos dois provedores e a confirmação dos pagamentos.
 
-Documentação oficial consultada em 10/11/2026: [contrato PAY / Swagger](https://pagamentos.meuk8.com.br/PagamentosAPI/swagger/docs/v1), [credenciais PAY](https://docs.meuk8.com.br/docs/gerar-credenciais-1) e [consulta por referência](https://docs.meuk8.com.br/reference/consultatransacao_consultatransacaoreferencia_consultatransacaoreferencia_post). A integração usa `POST /v2/CriaTransacaoCheckout` e `POST /api/ConsultaTransacaoReferencia`; não usa a rota antiga de checkout marcada como obsoleta.
+Documentação oficial consultada em 10/11/2026: [contrato PAY / Swagger](https://pagamentos.meuk8.com.br/PagamentosAPI/swagger/docs/v1), [credenciais PAY](https://docs.meuk8.com.br/docs/gerar-credenciais-1) e [consulta por referência](https://docs.meuk8.com.br/reference/consultatransacao_consultatransacaoreferencia_consultatransacaoreferencia_post). A integração usa `POST /v2/CriaTransacaoCheckout`, `POST /api/ConsultaTransacao`, `POST /api/ConsultaTransacaoReferencia` e `POST /api/ConsultaTransacoes`; não usa a rota antiga de checkout marcada como obsoleta.
