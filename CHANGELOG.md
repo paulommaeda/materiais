@@ -1,5 +1,25 @@
 # Alterações
 
+## Plugin 2.8.2
+
+- PAY para novos cartões, Pix e boletos pelo checkout hospedado v2; credenciais próprias para produção e testes. Pedidos e credenciais COB anteriores preservados.
+- Referências UUID de 36 caracteres em novas compras, com validação local antes de criar o checkout; referências antigas mantidas nas consultas.
+- Consulta pelo ID da transação vinculada ou pelo identificador recebido no checkout, com alternativa por referência quando aplicável.
+- Vínculo administrativo de transação PAY já existente após conferir identificador, número do pedido, comprador, valor integral e método. Recupera confirmação sem gerar outro pagamento.
+- URL de confirmação assinada e página de retorno para novos checkouts. Avisos do navegador e da notificação só provocam consulta autenticada; não declaram pagamento por conta própria.
+- Preserva parcelamento por data e impede repetição de criação em falhas incertas. Mantém entregas e a devolução física registráveis após estorno remoto.
+- GitHub Actions executa também os testes PAY e verifica os pacotes antes de publicação. O gerador preserva o ZIP validado e rejeita mudança de conteúdo sem nova versão.
+
+## Plugin 2.8.1
+
+- Corrige a referência PAY que excedia 36 caracteres. O histórico não é truncado nem renomeado e tentativas anteriores não são reenviadas automaticamente.
+
+## Plugin 2.8.0
+
+- Integração inicial de PAY para os três meios, com ambiente por pedido, endereço para boleto e confirmação por referência.
+- Mantém o COB para o histórico e exige conferência administrativa antes de liberar uma tentativa de pagamento incerta.
+
+
 ## Plugin 2.7.0
 
 - Confirmação de compra após pagamento confirmado, inclusive cortesia, com assunto e texto próprios por produto.

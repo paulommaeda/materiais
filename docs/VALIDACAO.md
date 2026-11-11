@@ -1,3 +1,11 @@
+# Validação da versão 2.8.2
+
+Validação local: 505 verificações de integração/atualização (389 das funções anteriores, 109 PAY e 7 da atualização de 2.8.1), 108 JavaScript, sintaxe de 38 arquivos PHP e dois JavaScript, instalação pelo WordPress e três respostas HTTP da página de retorno. Os pagamentos e e-mails são simulados; não houve acesso à conta K8 de produção. [Relatório do plugin](../k8-produtos/VALIDACAO.md).
+
+O GitHub Actions desta versão inclui os 109 testes PAY e os 389 anteriores, além de JavaScript, sintaxe e testes de integridade dos pacotes. A publicação exige ZIP e manifesto correspondentes; o gerador recusa substituir o conteúdo de um pacote já versionado.
+
+O texto abaixo registra verificações de versões anteriores.
+
 # Validação — versão 2.7.0 — 30/10/2026
 
 Ambiente descartável no GitHub Actions: WordPress 7.1.4, PHP 8.3.6 e MariaDB 10.11.19. Nenhum acesso ao WordPress de produção, à conta K8 ou ao SMTP do usuário.

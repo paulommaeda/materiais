@@ -11,12 +11,13 @@ final class Client
     private string $aes;
     private ?string $token = null;
 
-    public function __construct()
+    public function __construct(?string $environment = null)
     {
         $this->client_id = defined('K8PROD_CLIENT_ID') ? K8PROD_CLIENT_ID : (string) get_option('k8p_client_id', '');
         $this->secret = defined('K8PROD_CLIENT_SECRET') ? K8PROD_CLIENT_SECRET : (string) get_option('k8p_client_secret', '');
         $this->aes = defined('K8PROD_AES_KEY') ? K8PROD_AES_KEY : (string) get_option('k8p_aes_key', '');
-        $production = get_option('k8p_producao', '0') === '1';
+        if ($environment !== null && !in_array($environment, ['production', 'sandbox'], true)) throw new \InvalidArgumentException('Ambiente COB inválido.');
+        $production = $environment !== null ? $environment === 'production' : get_option('k8p_producao', '0') === '1';
         $this->base = rtrim((string) get_option($production ? 'k8prod_api_production' : 'k8prod_api_sandbox',
             $production ? 'https://pagamentos.meuk8.com.br/CobrancasAPI' : 'https://sandbox.meuk8.com.br/CobrancasAPI'), '/');
         if ($this->client_id === '' || $this->secret === '' || $this->aes === '' || !extension_loaded('openssl')) {
@@ -100,9 +101,12 @@ final class Client
 
     public function consult(string $id): array
     {
-        $path = (string) get_option('k8prod_query_path', '/api/Cobranca?Id={id}');
+        $path = (string) get_option('k8prod_query_path', '/api/Cobranca/{id}');
+        if ($path === '/api/Cobranca?Id={id}') $path = '/api/Cobranca/{id}';
         $data = $this->request('GET', str_replace('{id}', rawurlencode($id), $path));
-        return isset($data[0]) && is_array($data[0]) ? $data[0] : $data;
+        $data = isset($data[0]) && is_array($data[0]) ? $data[0] : $data;
+        if ((string) ($data['Id'] ?? '') !== $id) throw new \RuntimeException('A consulta COB retornou uma cobrança diferente da solicitada. Confira o endpoint antes de continuar.');
+        return $data;
     }
 
     public function create_card_link(object $order, object $product): array
@@ -156,9 +160,10 @@ final class Client
         return $this->request('DELETE', str_replace('{id}', rawurlencode($id), $path));
     }
 
-    public static function checkout(string $id): string
+    public static function checkout(string $id, ?string $environment = null): string
     {
-        $key = get_option('k8p_producao', '0') === '1' ? 'k8prod_checkout_production' : 'k8prod_checkout_sandbox';
+        $production = $environment !== null ? $environment === 'production' : get_option('k8p_producao', '0') === '1';
+        $key = $production ? 'k8prod_checkout_production' : 'k8prod_checkout_sandbox';
         $base = (string) get_option($key, 'https://pagamentos.k8bank.com.br/cobrancasui/checkout');
         return add_query_arg('ID', $id, $base);
     }

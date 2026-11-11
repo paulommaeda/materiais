@@ -1,5 +1,15 @@
 # Formas de pagamento e parcelas por data — versão 2.6.1
 
+## PAY na versão 2.8.2
+
+Escolha PAY em K8 Produtos → Configurações após cadastrar as credenciais próprias do ambiente. Novos cartões, Pix e boletos usam o checkout v2; pedidos anteriores seguem no COB. O limite vigente por data é registrado no pedido e enviado ao cartão. [Guia de migração](../k8-produtos/MIGRACAO-PAY.md).
+
+A confirmação consulta o identificador da transação ou a referência, conforme a operação. Se o pagamento já foi aprovado no PAY e o pedido ainda está pendente, use a consulta ou o vínculo do ID da transação existente, sem repetir o pagamento. Novos checkouts incluem confirmação pelo servidor e retorno assinado. [Guia de retorno e conciliação PAY](RETORNO-PAY.md).
+
+## Configuração e operação COB
+
+As orientações abaixo sobre links individuais e cobranças avulsas se aplicam ao provedor COB e ao histórico COB. Os campos de credenciais, checkout e identificação PAY são separados.
+
 O pagamento na K8 abre em **outra janela**, mantendo a loja aberta para acompanhar o pedido. Se a abertura for bloqueada ou a janela for fechada, use **Continuar pagamento na K8**. Ao voltar à loja, a situação é consultada novamente; também é possível usar **Atualizar situação**. O navegador pode abrir uma aba separada, especialmente no celular. Cortesias são confirmadas na própria loja.
 
 ## Configurar o produto

@@ -99,6 +99,17 @@ final class Views
                 </fieldset>
                 <p class="k8-price" data-k8-price></p>
                 <p class="k8-muted" data-k8-payment-terms hidden></p>
+                <fieldset class="k8-form k8-form-grid" data-k8-pay-address hidden disabled>
+                    <legend>Endereço para o boleto</legend>
+                    <p class="k8-muted">O banco exige o endereço do pagador para emitir o boleto. Preencha e clique novamente em Boleto para continuar.</p>
+                    <label>CEP<input name="pay_cep" data-k8-address-field inputmode="numeric" autocomplete="postal-code" maxlength="9" pattern="[0-9]{5}-?[0-9]{3}" required></label>
+                    <label>Endereço<input name="pay_endereco" data-k8-address-field autocomplete="address-line1" maxlength="255" required></label>
+                    <label>Número (somente dígitos)<input name="pay_numero" data-k8-address-field inputmode="numeric" pattern="[0-9]{1,20}" maxlength="20" required></label>
+                    <label>Complemento<input name="pay_complemento" data-k8-address-field autocomplete="address-line2" maxlength="255"></label>
+                    <label>Bairro<input name="pay_bairro" data-k8-address-field maxlength="100" required></label>
+                    <label>Cidade<input name="pay_cidade" data-k8-address-field autocomplete="address-level2" maxlength="100" required></label>
+                    <label>UF<select name="pay_uf" data-k8-address-field autocomplete="address-level1" required><option value="">Selecione</option><?php foreach (['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] as $state) echo '<option value="' . $state . '">' . $state . '</option>'; ?></select></label>
+                </fieldset>
                 <div class="k8-methods"><button class="k8-btn" data-method="Pix" type="button" hidden>Pagar com Pix</button><button class="k8-btn secondary" data-method="Boleto" type="button" hidden>Boleto</button><button class="k8-btn secondary" data-method="Cartao" type="button" hidden>Cartão de crédito</button></div>
                 <button class="k8-btn" data-method="Cortesia" type="button" hidden>Finalizar sem custo</button>
             </div>
@@ -335,12 +346,15 @@ final class Views
         $rows = $wpdb->get_results($wpdb->prepare("SELECT p.* FROM $table p WHERE $where ORDER BY p.id DESC LIMIT 50 OFFSET %d", ($page - 1) * 50));
         self::table_start(['Pedido', 'Aluno', 'Responsável', 'Pagamento', 'Ações']);
         foreach ($rows as $o) {
-            echo '<tr><td>#' . (int) $o->id . '<br><small>' . esc_html($o->criado_em) . '</small></td><td><strong>' . esc_html($o->nome_aluno) . '</strong><br>RA ' . esc_html($o->ra) . ' · ' . esc_html($o->turma) . '</td><td>' . esc_html($o->nome_resp) . '</td><td>' . esc_html(self::currency($o->valor)) . '<br>' . esc_html($o->metodo) . '<br><span class="k8-badge">' . esc_html($o->status_pagamento ?: $o->status) . '</span></td><td>';
+            echo '<tr><td>#' . (int) $o->id . '<br><small>' . esc_html($o->criado_em) . '</small></td><td><strong>' . esc_html($o->nome_aluno) . '</strong><br>RA ' . esc_html($o->ra) . ' · ' . esc_html($o->turma) . '</td><td>' . esc_html($o->nome_resp) . '</td><td>' . esc_html(self::currency($o->valor)) . '<br>' . esc_html($o->metodo) . '<br><small>' . (PayPayments::is_pay($o) ? 'PAY — ' . esc_html($o->pagamento_ambiente === 'production' ? 'produção' : 'teste') : 'COB / legado') . '</small><br><span class="k8-badge">' . esc_html($o->status_pagamento ?: $o->status) . '</span></td><td>';
             if ($o->cartao_parcelas_max) echo '<p class="k8-muted">Cartão: até ' . (int) $o->cartao_parcelas_max . ' parcela(s).</p>';
+            if (PayPayments::is_pay($o) && !$o->erro_mensagem) echo '<p class="k8-muted">Referência PAY: ' . esc_html(PayPayments::reference($o)) . '</p>';
+            if (PayPayments::is_pay($o) && $o->pay_checkout_id) echo '<p class="k8-muted">ID do checkout PAY: ' . esc_html($o->pay_checkout_id) . '</p>';
+            if (PayPayments::is_pay($o) && $o->pay_transacao_id) echo '<p class="k8-muted">ID da transação PAY: ' . esc_html($o->pay_transacao_id) . '</p>';
             if ($o->erro_mensagem) {
-                echo '<details><summary>Detalhes da tentativa</summary><p>' . esc_html($o->erro_mensagem) . '</p><p>Referência na K8: ' . esc_html(CardPayments::is_link($o) ? CardPayments::reference($o) : 'K8P-' . (int) $o->id) . '</p></details>';
+                echo '<details><summary>Detalhes da tentativa</summary><p>' . esc_html($o->erro_mensagem) . '</p><p>Referência na K8: ' . esc_html(PayPayments::is_pay($o) ? PayPayments::reference($o) : (CardPayments::is_link($o) ? CardPayments::reference($o) : 'K8P-' . (int) $o->id)) . '</p></details>';
             }
-            if (($o->cobranca_id || $o->link_pagamento_id) && !in_array($o->status_pagamento, ['Paga', 'Cancelada'], true)) {
+            if (($o->cobranca_id || $o->link_pagamento_id || PayPayments::is_pay($o)) && $o->status_pagamento !== 'Cancelada' && (PayPayments::is_pay($o) || $o->status_pagamento !== 'Paga')) {
                 $checkout_url = Service::public_order($o)['redirect'];
                 if ($checkout_url) echo '<a href="' . esc_url($checkout_url) . '" target="_blank" rel="noopener">Abrir checkout K8</a>';
                 self::form('sync', (int) $p->id);
@@ -348,7 +362,15 @@ final class Views
                 self::button('Consultar este pedido');
                 echo '</form>';
             }
-            if ($o->status === 'verificacao' && !$o->cobranca_id && !$o->link_pagamento_id) {
+            if (PayPayments::is_pay($o) && !in_array($o->status_pagamento, ['Paga', 'Cancelada'], true)) {
+                echo '<details><summary>Vincular transação PAY existente</summary><p>Se o pagamento já foi feito, informe o ID da transação exibido no PAY. A consulta precisa confirmar pedido, comprador, valor e forma de pagamento. Não faça outro pagamento para corrigir o retorno.</p>';
+                self::form('reconcile', (int) $p->id);
+                echo '<input type="hidden" name="pedido_id" value="' . (int) $o->id . '">';
+                self::field('cobranca_id', 'ID da transação PAY (UUID)', '', 'text', 'required maxlength="36" autocomplete="off"');
+                self::button('Conferir e vincular transação PAY');
+                echo '</form></details>';
+            }
+            if ($o->status === 'verificacao' && !$o->cobranca_id && !$o->link_pagamento_id && !PayPayments::is_pay($o)) {
                 echo '<details><summary>' . (CardPayments::is_link($o) ? 'Vincular link de cartão existente' : 'Vincular cobrança existente') . '</summary>';
                 self::form('reconcile', (int) $p->id);
                 echo '<input type="hidden" name="pedido_id" value="' . (int) $o->id . '">';
@@ -361,7 +383,9 @@ final class Views
                 self::form('cancel', (int) $p->id);
                 echo '<input type="hidden" name="pedido_id" value="' . (int) $o->id . '">';
                 self::field('motivo', 'Motivo do cancelamento', '', 'text', 'required minlength="5"');
-                if ($o->status === 'verificacao' && !$o->cobranca_id && !$o->link_pagamento_id) {
+                if (PayPayments::is_pay($o)) {
+                    echo '<p class="k8-muted">Encerre o checkout no painel PAY antes de liberar outra compra. Este botão não solicita estorno de pagamento.</p><label class="k8-check"><input type="checkbox" name="confirmar_sem_cobranca" value="1" required>Conferi e encerrei no PAY este checkout; não existe pagamento confirmado nem checkout ativo para esta tentativa.</label>';
+                } elseif ($o->status === 'verificacao' && !$o->cobranca_id && !$o->link_pagamento_id) {
                     echo '<label class="k8-check"><input type="checkbox" name="confirmar_sem_cobranca" value="1" required>Conferi no painel K8 e não há link nem cobrança ativa para esta tentativa.</label>';
                 }
                 self::button('Confirmar cancelamento');
@@ -430,7 +454,7 @@ final class Views
         echo '</div>';
         $orders = Support::table('pedidos');
         $deliveries = Support::table('entregas');
-        $where = self::where((int) $p->id, $filter) . " AND p.status_pagamento = 'Paga'";
+        $where = self::where((int) $p->id, $filter) . " AND (p.status_pagamento = 'Paga' OR e.status = 'entregue')";
         if (in_array($filter['state'], ['entregue', 'pendente'], true)) {
             $where .= $wpdb->prepare(" AND COALESCE(e.status,'pendente') = %s", $filter['state']);
         }
@@ -440,7 +464,7 @@ final class Views
         $rows = $wpdb->get_results($wpdb->prepare("SELECT p.*,e.id AS entrega_id,e.status AS entrega_status,e.assinatura AS entrega_assinatura,e.materiais_entregues AS delivery_items,e.entregue_em AS data_entrega,e.recebido_por $join ORDER BY p.criado_em ASC,p.id ASC LIMIT 50 OFFSET %d", ($page - 1) * 50));
         self::table_start(['Aluno / pedido', 'Materiais desta entrega', 'Situação', 'Registrar']);
         foreach ($rows as $o) {
-            echo '<tr><td><strong>' . esc_html($o->nome_aluno) . '</strong><br>' . esc_html($o->turma) . ' · RA ' . esc_html($o->ra) . '<br>Pedido #' . (int) $o->id . '</td><td><ul>';
+            echo '<tr><td><strong>' . esc_html($o->nome_aluno) . '</strong><br>' . esc_html($o->turma) . ' · RA ' . esc_html($o->ra) . '<br>Pedido #' . (int) $o->id . ($o->status_pagamento !== 'Paga' ? '<br>Pagamento: ' . esc_html($o->status_pagamento) : '') . '</td><td><ul>';
             if ($o->entrega_status === 'entregue') {
                 foreach ((json_decode((string) $o->delivery_items, true) ?: []) as $m) {
                     echo '<li>' . (int) ($m['quantidade'] ?? 1) . ' × ' . esc_html($m['nome'] ?? '#' . $m['id']) . '</li>';
@@ -786,26 +810,39 @@ final class Views
         self::shell();
         echo '<h1>Configurações K8</h1>';
         self::form('settings', 0);
-        echo '<section class="k8-card"><h2>Credenciais</h2><p>As credenciais existentes são reaproveitadas. Deixe os campos vazios para mantê-las.</p>';
+        echo '<section class="k8-card"><h2>Novas compras</h2><label>Provedor de pagamento<select name="gateway"><option value="cob" ' . selected(PayPayments::gateway(), 'cob', false) . '>K8 COB</option><option value="pay" ' . selected(PayPayments::gateway(), 'pay', false) . '>K8 PAY — checkout hospedado v2</option></select></label><p>Cartão, Pix e boleto novos usam o provedor escolhido. Cada pedido anterior continua no seu provedor de origem.</p><label class="k8-check"><input type="checkbox" name="producao" value="1" ' . checked(get_option('k8p_producao', '0'), '1', false) . '>Usar ambiente de produção</label></section>';
+        foreach (['production' => 'PAY — produção', 'sandbox' => 'PAY — testes (sandbox)'] as $environment => $title) {
+            echo '<section class="k8-card"><h2>' . esc_html($title) . '</h2><p>' . (PayClient::configured($environment) ? 'Credenciais cadastradas.' : 'Credenciais ainda não cadastradas.') . ' Deixe os campos vazios para manter os valores existentes.</p>';
+            $prefix = 'pay_' . ($environment === 'sandbox' ? 'sandbox_' : '');
+            self::field($prefix . 'client_id', 'Client ID do PAY', '', 'text', 'autocomplete="off"');
+            self::field($prefix . 'client_secret', 'Client Secret do PAY', '', 'password', 'autocomplete="new-password"');
+            self::field($prefix . 'aes_key', 'Chave AES do PAY', '', 'password', 'autocomplete="new-password"');
+            echo '</section>';
+        }
+        echo '<details class="k8-card"><summary>Credenciais COB e pedidos anteriores</summary><p>Mantenha as credenciais COB para consultar pagamentos e pedidos antigos. Deixe os campos vazios para mantê-las.</p>';
         self::field('client_id', 'Client ID', '', 'text', 'autocomplete="off"');
         self::field('client_secret', 'Client Secret', '', 'password', 'autocomplete="new-password"');
         self::field('aes_key', 'Chave AES', '', 'password', 'autocomplete="new-password"');
-        echo '<label class="k8-check"><input type="checkbox" name="producao" value="1" ' . checked(get_option('k8p_producao', '0'), '1', false) . '>Usar ambiente de produção</label></section><section class="k8-card"><h2>Base de alunos</h2><p>O nome da tabela recebe o prefixo do WordPress automaticamente. As colunas do segundo responsável são opcionais.</p>';
+        echo '</details><section class="k8-card"><h2>Base de alunos</h2><p>O nome da tabela recebe o prefixo do WordPress automaticamente. As colunas do segundo responsável são opcionais.</p>';
         $labels = ['table' => 'Tabela (sem prefixo)', 'ra' => 'Coluna RA', 'name' => 'Nome do aluno', 'class' => 'Turma',
             'cpf1' => 'CPF do responsável 1', 'parent1' => 'Nome do responsável 1', 'cpf2' => 'CPF do responsável 2', 'parent2' => 'Nome do responsável 2'];
         foreach (Students::config() as $key => $value) {
             self::field('student_' . $key, $labels[$key], $value);
         }
-        echo '</section><details class="k8-card"><summary>Endpoints K8 e URLs de checkout</summary><p>Os padrões foram mantidos do cliente fornecido. Confirme os caminhos de consulta, cancelamento e sandbox com a documentação da sua conta K8.</p>';
+        echo '</section><details class="k8-card"><summary>Endpoints K8 e URLs de checkout</summary><p>Endereços próprios de cada serviço e ambiente. Altere somente quando a K8 fornecer outros endereços para sua conta.</p>';
         $defaults = ['api_production' => 'https://pagamentos.meuk8.com.br/CobrancasAPI', 'api_sandbox' => 'https://sandbox.meuk8.com.br/CobrancasAPI',
             'checkout_production' => 'https://pagamentos.k8bank.com.br/cobrancasui/checkout', 'checkout_sandbox' => 'https://pagamentos.k8bank.com.br/cobrancasui/checkout',
-            'query_path' => '/api/Cobranca?Id={id}', 'cancel_path' => '/api/Cobranca/{id}'];
+            'pay_api_production' => 'https://pagamentos.meuk8.com.br/PagamentosAPI', 'pay_api_sandbox' => 'https://sandbox.meuk8.com.br/PagamentosAPI',
+            'query_path' => '/api/Cobranca/{id}', 'cancel_path' => '/api/Cobranca/{id}'];
         foreach ($defaults as $key => $value) {
             self::field($key, $key, get_option('k8prod_' . $key, $value), strpos($key, 'path') !== false ? 'text' : 'url', 'required');
         }
         echo '</details>';
         self::button('Salvar configurações');
         echo '</form>';
+        self::form('pay_check', 0);
+        self::button('Verificar conexão PAY');
+        echo '<p class="k8-muted">Salve as credenciais antes de verificar. A consulta lê a configuração do ambiente selecionado e não cria pagamentos.</p></form>';
         Updates::status();
         echo '</div>';
     }

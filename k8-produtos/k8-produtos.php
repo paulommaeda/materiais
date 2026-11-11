@@ -2,7 +2,7 @@
 /**
  * Plugin Name: K8 Produtos, Alunos, Cobranças e Entregas
  * Description: Produtos com shortcode próprio, cobrança K8, cupons, estoque, entrega com assinatura e e-mails por produto.
- * Version: 2.7.0
+ * Version: 2.8.2
  * Plugin URI: https://github.com/paulommaeda/materiais
  * Update URI: https://github.com/paulommaeda/materiais/k8-produtos
  * Author: Paulo Maeda
@@ -16,11 +16,11 @@ namespace K8Produtos;
 
 defined('ABSPATH') || exit;
 
-define('K8PROD_VERSION', '2.7.0');
+define('K8PROD_VERSION', '2.8.2');
 define('K8PROD_FILE', __FILE__);
 define('K8PROD_DIR', __DIR__ . '/');
 
-foreach (['support', 'student-import', 'student-api', 'product-classes', 'schema', 'client', 'students', 'discounts', 'payment-terms', 'card-payments', 'service', 'emails', 'http', 'views', 'storefront', 'updates'] as $module) {
+foreach (['support', 'student-import', 'student-api', 'product-classes', 'schema', 'client', 'students', 'discounts', 'payment-terms', 'card-payments', 'pay-client', 'pay-payments', 'pay-return', 'service', 'emails', 'http', 'views', 'storefront', 'updates'] as $module) {
     require_once K8PROD_DIR . 'includes/' . $module . '.php';
 }
 
@@ -60,6 +60,7 @@ add_action('plugins_loaded', static function () {
     StudentApi::register();
     Storefront::register();
     Http::register();
+    PayReturn::register();
     Views::register();
     add_action('k8prod_sync', [Service::class, 'sync_batch']);
 });

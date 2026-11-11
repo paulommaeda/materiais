@@ -56,12 +56,14 @@ jobs:
               for source in sorted(Path(folder).rglob('*.php')):
                   subprocess.run(['php', '-l', str(source)], check=True)
           PY
+      - name: Conferir integridade e preservação dos pacotes
+        run: python3 scripts/test-build.py
       - name: Preparar WordPress descartável
         run: python3 scripts/prepare-wordpress-tests.py "$RUNNER_TEMP/wordpress"
-      - name: Validar núcleo, preços, turmas, pagamentos e e-mails
+      - name: Validar núcleo, alunos, PAY, pagamentos e e-mails
         run: |
           export K8PROD_WP_LOAD="$RUNNER_TEMP/wordpress/wp-load.php"
-          for fixture in integration discounts-integration product-classes-integration payment-terms-integration visibility-deletion-integration emails-integration; do
+          for fixture in integration discounts-integration product-classes-integration payment-terms-integration visibility-deletion-integration emails-integration student-import-api-integration site-integration pay-integration; do
             export K8PROD_CI_DB="k8prod_${fixture//-/_}_test"
             php scripts/bootstrap-wordpress-tests.php
             php "k8-produtos/tests/$fixture.php"
@@ -80,3 +82,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Publicar pacotes WordPress validados"
           git push origin "HEAD:$RELEASE_BRANCH"
+

@@ -62,6 +62,17 @@ async function runPaymentWindowTests(source, executeScript) {
     doc.querySelectorAll = selector => selector === '[data-k8-product]' ? [root] : [];
     const win = new Element('window');
     const env = {root, elements, notice, buttons, doc, win, windows: [], trace: [], currentOrder: null, available: true};
+    if (options.payBoleto) {
+      env.addressBox = new Element('fieldset'); env.addressBox.hidden = true; env.addressBox.disabled = true;
+      env.addressInputs = ['cep','endereco','numero','bairro','cidade','uf','complemento'].map(name => {
+        const field = new Element('input'); field.name = 'pay_' + name; field.value = ''; field.required = name !== 'complemento';
+        field.checkValidity = () => !field.required || Boolean(field.value.trim());
+        field.reportValidity = () => { env.addressValidityReported = true; return field.checkValidity(); };
+        return field;
+      });
+      env.addressBox.querySelectorAll = selector => selector === '[data-k8-address-field]' ? env.addressInputs : [];
+      root.selectors['[data-k8-pay-address]'] = env.addressBox;
+    }
     if (options.email) {
       env.emailBox = new Element('fieldset'); env.emailInput = new Element('input'); env.reminder = new Element('input');
       env.emailInput.value = ''; env.emailInput.required = false; env.reminder.checked = false;
@@ -107,12 +118,14 @@ async function runPaymentWindowTests(source, executeScript) {
       }
       else if (op === 'quote') data = {
         chave_preco: 'cotacao-teste', original: 100, valor: options.free ? 0 : 90, cupom: '',
+        endereco_boleto: Boolean(options.payBoleto),
         formas_pagamento: ['Pix', 'Boleto', 'Cartao'], parcelas_cartao_max: 6, refresh_after: 300,
         email_checkout: options.email ? {ativo: options.emailActive !== false, obrigatorio: options.emailRequired !== false,
           lembrete_disponivel: true, email: options.prefill || '', lembrete: Boolean(options.reminder)} : undefined
       };
       else if (op === 'checkout') {
         env.checkoutMethod = request.body.get('metodo');
+        env.checkoutAddress = Object.fromEntries(['cep','endereco','numero','bairro','cidade','uf','complemento'].map(name => [name, request.body.get('pay_' + name)]));
         env.checkoutContact = {email: request.body.get('email_responsavel'), reminder: request.body.get('lembrete_email')};
         await gate;
         if (options.closedByUser) env.windows[0].closed = true;
@@ -244,6 +257,23 @@ async function runPaymentWindowTests(source, executeScript) {
     check(env.emailBox.hidden, 'Produtos sem envio devem manter o campo oculto.');
     await env.pay('Cartao');
     check(env.checkoutContact.email === null && env.windows.length === 1, 'Envio desligado deve preservar a compra anterior, sem campo de e-mail.');
+  }
+  {
+    const env = await fixture({payBoleto: true});
+    await env.pay('Boleto');
+    check(!env.addressBox.hidden && !env.addressBox.disabled && env.addressValidityReported, 'Boleto PAY deve revelar e validar endereço.');
+    check(!env.windows.length && !env.trace.includes('checkout'), 'Endereço vazio bloqueia antes da janela e de qualquer pedido.');
+    const address = {cep: '01234-567', endereco: 'Rua de Teste', numero: '42', bairro: 'Centro', cidade: 'São Paulo', uf: 'SP', complemento: ''};
+    env.addressInputs.forEach(field => { field.value = address[field.name.replace('pay_', '')]; });
+    await env.pay('Boleto');
+    check(env.checkoutAddress.cep === address.cep && env.checkoutAddress.uf === address.uf && env.checkoutMethod === 'Boleto', 'Endereço preenchido acompanha o checkout de boleto.');
+    check(env.windows.length === 1 && env.trace.indexOf('open') < env.trace.indexOf('checkout'), 'Boleto válido mantém abertura no clique antes da requisição.');
+  }
+  for (const method of ['Pix', 'Cartao']) {
+    const env = await fixture({payBoleto: true});
+    await env.pay(method);
+    check(env.addressBox.hidden && env.addressBox.disabled && env.windows.length === 1, 'Endereço não bloqueia nem aparece para ' + method);
+    check(Object.values(env.checkoutAddress).every(value => value === null), 'Endereço não é enviado no pagamento por ' + method);
   }
   return checks;
 }

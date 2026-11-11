@@ -1,4 +1,8 @@
-# K8 Produtos, Alunos, Cobranças e Entregas — 2.7.0
+# K8 Produtos, Alunos, Cobranças e Entregas — 2.8.2
+
+A versão 2.8.2 acrescenta consulta PAY por ID, vínculo administrativo de transação existente, notificação assinada e página de retorno com confirmação consultada na API. Veja [como recuperar um pagamento já feito](CORRECAO-RETORNO-PAY.md).
+
+A versão 2.8.1 corrige a referência PAY que ultrapassava o máximo de 36 caracteres. Novos pedidos usam UUID de 36 caracteres; as referências já gravadas são preservadas nas consultas. Veja [como atualizar e repetir uma tentativa recusada](CORRECAO-REFERENCIA-PAY.md).
 
 Plugin único criado a partir dos cinco arquivos de Paulo Maeda. Reúne cadastro de produtos, página pública de compra, cobrança K8, cupons, estoque, entregas com assinatura e painel por produto. Não exige WooCommerce.
 
@@ -13,10 +17,10 @@ Plugin e tema consultam atualizações no repositório público `paulommaeda/mat
 ## Instalação e migração
 
 1. Faça um backup do banco e teste o ZIP em uma cópia do seu WordPress.
-2. Em **Plugins → Adicionar plugin → Enviar plugin**, envie `k8-produtos-2.2.0.zip` e ative.
+2. Em **Plugins → Adicionar plugin → Enviar plugin**, envie `k8-produtos-2.8.2.zip` e ative.
 3. A ativação identifica e desativa os plugins antigos de pagamento, dashboard, materiais e Sistema de Alunos — Busca Direta pelos nomes exatos dos cabeçalhos. O arquivo do dashboard de estoque era um complemento e agora está incorporado. Não mantenha cópias dos arquivos antigos executando em tema, mu-plugin ou gerenciador de snippets.
 4. Se a tabela antiga de pedidos existir, os registros atuais são vinculados ao produto **Material Didático — legado**. Abra **K8 Produtos → Produtos e preços** para renomeá-lo, por exemplo, para “Material Didático 2027”.
-5. Em **K8 Produtos → Configurações**, confira o mapeamento de alunos e os endpoints K8. As credenciais salvas pelos plugins anteriores são reaproveitadas.
+5. Em **K8 Produtos → Configurações**, confira o mapeamento de alunos e os endpoints K8. As credenciais COB existentes são preservadas; PAY exige credenciais próprias. Siga o [guia da migração PAY](MIGRACAO-PAY.md).
 6. Abra **K8 Produtos → Dashboard**, selecione o produto e confira pedidos, saldos e entregas antes de publicar novas páginas.
 
 A atualização reaproveita as tabelas `PREFIXO_k8p_*`, preservando IDs e os dados existentes. Acrescenta a tabela `k8p_produtos` e o vínculo `produto_id`. Os índices únicos de turma e código de cupom passam a incluir o produto. Histórico de estoque e assinaturas são preservados; uma entrega antiga registrada somente na coluna `pedidos.entregue` é convertida em entrega da primeira etapa quando não existir registro correspondente.
@@ -98,7 +102,7 @@ No cadastro de cada produto, marque as formas aceitas: **Pix, boleto e cartão d
 
 A compra e o catálogo mostram a condição vigente. Formas desabilitadas ficam ocultas e são rejeitadas pelo servidor. Se métodos ou parcelas mudarem com a tela aberta, o comprador precisa conferir e confirmar as condições atuais. Preço e parcelamento têm calendários próprios por produto; os pedidos emitidos conservam o valor, o método e o limite registrados.
 
-Novos cartões utilizam link K8 individual, de valor fixo e não reutilizável, com limite de parcelas próprio. O comprador escolhe a quantidade efetiva no checkout K8, que recebe os dados do cartão. O pedido só fica pago após conferir o link e a cobrança correspondente. Pix e boleto continuam à vista por cobrança avulsa.
+Com PAY selecionado nas configurações, cartão, Pix e boleto novos utilizam o checkout hospedado v2, habilitando somente o método escolhido. O cartão recebe o máximo de parcelas vigente no produto, e boleto exige endereço completo do pagador. A confirmação depende de consulta ao PAY. Com COB selecionado, permanecem os links individuais de cartão e as cobranças avulsas de Pix e boleto. Pedidos antigos continuam no provedor de origem.
 
 Na migração, os três métodos anteriores ficam habilitados e o padrão de **novos cartões é 1x**, até que você configure outro limite ou uma faixa no produto. Cartões emitidos anteriormente mantêm seu checkout original, sem limite retroativo. Homologue o novo fluxo no sandbox da conta K8 antes de habilitar vendas reais; o desenvolvimento usa respostas simuladas, sem cobrança real. O [guia completo](https://github.com/paulommaeda/materiais/blob/main/docs/PAGAMENTO-POR-PRODUTO.md) inclui configuração, conciliação e cancelamento.
 
@@ -150,29 +154,19 @@ Por padrão, produtos novos impedem saídas com saldo insuficiente. O produto le
 
 ## K8 e pagamentos
 
-Para Pix e boleto, o contrato de cobrança avulsa foi mantido do cliente enviado: autenticação em `/token`, AES-128-CBC, busca/criação de cliente e cobrança avulsa em `/api/Cobranca`. Houve uma correção adicional: uma lista vazia de clientes passa a ser aceita, permitindo cadastrar um responsável novo.
+A versão 2.8.0 acrescenta PAY para cartão, Pix e boleto. A instalação mantém o provedor atual: cadastre as credenciais próprias do PAY, escolha o ambiente e selecione PAY em **K8 Produtos → Configurações** para novas compras. [Guia de instalação, homologação e operação](MIGRACAO-PAY.md).
 
-As credenciais podem ser mantidas nas opções já existentes ou definidas no `wp-config.php`:
+COB e PAY usam clientes separados. As credenciais COB existentes, inclusive as constantes `K8PROD_CLIENT_ID`, `K8PROD_CLIENT_SECRET` e `K8PROD_AES_KEY`, continuam válidas para administrar o histórico COB. PAY tem campos e constantes próprios por ambiente. Os campos de credenciais não expõem os valores salvos; deixe-os vazios para preservar os valores atuais.
 
-```php
-define('K8PROD_CLIENT_ID', 'SEU_CLIENT_ID');
-define('K8PROD_CLIENT_SECRET', 'SEU_CLIENT_SECRET');
-define('K8PROD_AES_KEY', 'SUA_CHAVE_AES');
-```
+Cada pedido conserva origem, ambiente, valor e parcelamento. Na atualização, o ambiente em uso é registrado nos pedidos COB anteriores que ainda não tinham essa informação. Mantenha o ambiente atual durante a instalação; faça a mudança para testes somente depois. A consulta COB padrão foi corrigida para `/api/Cobranca/{id}`, com conferência do identificador retornado.
 
-As constantes prevalecem sobre as opções do painel. Os campos de credenciais não expõem os valores salvos; deixe-os vazios para manter os valores atuais.
+Os pedidos pendentes são consultados pelo WP-Cron a cada cinco minutos, até 30 por lote, priorizando os que estão há mais tempo sem consulta. O lote para após aproximadamente 20 segundos entre consultas. Pedidos PAY pagos são elegíveis para nova conferência após seis horas, para refletir estornos remotos. Há consulta manual por pedido e atualização pública solicitada pelo comprador. A frequência efetiva depende do agendador do site.
 
-Os arquivos originais indicam expressamente que **o endpoint de consulta, o de cancelamento e o caminho do sandbox não haviam sido confirmados no Swagger**. Esses padrões foram preservados e tornados configuráveis. A URL de checkout do sandbox também pode ser definida separadamente. Confirme-os com a K8 e faça uma cobrança de homologação antes de liberar o fluxo em produção. O produto foi testado localmente com respostas K8 simuladas; não houve conexão com a conta bancária nem criação de cobranças reais.
+Em falhas após iniciar a criação remota, o pedido fica **em conferência** e não libera outra cobrança automaticamente. No COB, localize a operação e use o vínculo de cobrança/link existente quando aplicável. No PAY, a consulta utiliza a referência registrada mesmo sem identificador inicial. Consulte o [guia PAY](MIGRACAO-PAY.md) antes de liberar manualmente uma tentativa.
 
-Os pagamentos pendentes e inadimplentes são consultados pelo WP-Cron a cada cinco minutos, até 30 por lote, priorizando os que estão há mais tempo sem consulta. A execução do lote para após aproximadamente 20 segundos entre consultas. Há também consulta manual e atualização solicitada pelo comprador. A frequência efetiva depende do WP-Cron do site; em sites sem acesso regular, configure o agendador da hospedagem para executar o cron do WordPress.
+Reembolsos são tratados na K8. O botão de cancelamento de pendência não solicita estorno PAY: exige declaração explícita de que o operador conferiu ausência de pagamento e encerrou o checkout remoto. A consulta tenta impedir baixa de pagamento já aprovado; quando a transação ainda não está disponível, a confirmação humana e seu diagnóstico ficam no histórico. O cancelamento no WordPress não encerra sozinho um checkout PAY.
 
-Em caso de falha após iniciar a criação remota, o pedido fica **em conferência** e não libera outra cobrança automaticamente. Na aba Pedidos:
-
-1. Localize a operação no painel K8 pela descrição com o número do pedido ou pela referência `K8P-ID_DO_PEDIDO`.
-2. Se a cobrança existir, use **Vincular cobrança existente**. A consulta precisa confirmar ID, cliente, valor e estado.
-3. Se não existir cobrança ativa, a secretaria pode cancelar a tentativa informando motivo e confirmando a conferência.
-
-Pedidos pagos permanecem no histórico. Reembolso deve ser tratado na K8; esta versão não faz reembolso nem baixa automática de pedidos reembolsados. Cancelamento de pedido pendente é enviado à K8 e só libera nova compra após resposta de sucesso. O plugin não apaga vendas nem históricos de entrega.
+Os testes de desenvolvimento usam respostas K8 e e-mails simulados. Não houve conexão com a sua conta nem criação de cobrança real. Faça a homologação no PAY antes de liberar vendas reais; ter acesso à API não garante a habilitação comercial de todos os métodos ou limites de parcelas.
 
 ## Acesso administrativo
 

@@ -4,6 +4,11 @@ defined('ABSPATH') || exit;
 
 final class Support
 {
+    public static function diagnostic(\Throwable $error): string
+    {
+        return $error instanceof PayException ? $error->diagnostic() : $error->getMessage();
+    }
+
     public static function table(string $suffix): string
     {
         global $wpdb;

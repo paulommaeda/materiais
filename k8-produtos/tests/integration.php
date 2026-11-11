@@ -164,9 +164,8 @@ add_filter('pre_http_request',function($pre,$args,$url){
         $GLOBALS['k8_fixture_posts']++;
         if ($GLOBALS['k8_fixture_mode']==='timeout') return new WP_Error('timeout','simulated timeout');
         $body=['Id'=>'charge-'.$GLOBALS['k8_fixture_posts']];
-    } elseif (strpos($url,'/api/Cobranca?')!==false) {
-        parse_str(parse_url($url,PHP_URL_QUERY),$query);
-        $body=['Id'=>$query['Id'],'Estado'=>$GLOBALS['k8_fixture_mode']==='paid'?'Paga':'Pendente','ClienteId'=>'customer-fixture','Valor'=>100];
+    } elseif ($args['method']==='GET' && preg_match('#/api/Cobranca/([^/]+)$#',parse_url($url,PHP_URL_PATH),$matched)) {
+        $body=['Id'=>$matched[1],'Estado'=>$GLOBALS['k8_fixture_mode']==='paid'?'Paga':'Pendente','ClienteId'=>'customer-fixture','Valor'=>100];
     }
     $encoded=base64_encode(openssl_encrypt(wp_json_encode($body),'AES-128-CBC','1234567890123456',OPENSSL_RAW_DATA,str_repeat("\0",16)));
     return ['headers'=>[],'body'=>$encoded,'response'=>['code'=>200,'message'=>'OK']];

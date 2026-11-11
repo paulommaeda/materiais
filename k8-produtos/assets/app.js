@@ -197,6 +197,12 @@
     const emailBox = root.querySelector('[data-k8-email]');
     const emailInput = root.querySelector('[data-k8-email-input]');
     const reminderInput = root.querySelector('[data-k8-reminder]');
+    const addressBox = root.querySelector('[data-k8-pay-address]');
+    let addressRequired = false;
+    function addressFields(method) {
+      if (method !== 'Boleto' || !addressRequired || !addressBox) return {};
+      return Object.fromEntries(Array.from(addressBox.querySelectorAll('[data-k8-address-field]')).map(field => [field.name, field.value.trim()]));
+    }
     let contactQueue = Promise.resolve();
     function contactFields() {
       return emailBox && !emailBox.hidden ? {email_responsavel: emailInput.value.trim(), lembrete_email: reminderInput.checked ? '1' : '0'} : {};
@@ -248,6 +254,8 @@
     }
     function showPrice(quote) {
       state.priceKey = quote.chave_preco;
+      addressRequired = Boolean(quote.endereco_boleto);
+      if (addressBox && !addressRequired) { addressBox.hidden = true; addressBox.disabled = true; }
       if (emailBox) {
         const config = quote.email_checkout || {};
         emailBox.hidden = !config.ativo;
@@ -441,12 +449,20 @@
     root.querySelectorAll('[data-method]').forEach(button => button.addEventListener('click', async () => {
       if (checkout.getAttribute('aria-busy') === 'true') return;
       if (emailBox && !emailBox.hidden && (emailInput.required || emailInput.value) && !emailInput.reportValidity()) return;
+      if (addressBox) {
+        const needAddress = button.dataset.method === 'Boleto' && addressRequired;
+        addressBox.hidden = !needAddress; addressBox.disabled = !needAddress;
+        if (needAddress) {
+          const invalid = Array.from(addressBox.querySelectorAll('[data-k8-address-field]')).find(field => !field.checkValidity());
+          if (invalid) { invalid.reportValidity(); return; }
+        }
+      }
       clearTimeout(contactTimer);
       const paymentWindow = button.dataset.method === 'Cortesia' ? null : preparePaymentWindow();
       busy(checkout, true);
       notice(root, 'Registrando pedido. Aguarde…', true);
       try {
-        const order = await request('checkout', {metodo: button.dataset.method, cupom: state.coupon, chave_preco: state.priceKey, ...contactFields()});
+        const order = await request('checkout', {metodo: button.dataset.method, cupom: state.coupon, chave_preco: state.priceKey, ...contactFields(), ...addressFields(button.dataset.method)});
         notice(root, '');
         renderOrder(order);
         if (order.redirect) {

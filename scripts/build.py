@@ -20,18 +20,31 @@ def build(slug, kind, header, name, description):
         raise SystemExit('O cabeçalho e K8PROD_VERSION devem ter a mesma versão.')
     dest = ROOT / 'dist' / f'{slug}-{version}.zip'
     dest.parent.mkdir(exist_ok=True)
-    with zipfile.ZipFile(dest, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for path in sorted((ROOT / slug).rglob('*')):
-            if not path.is_file() or any(part.startswith('.') or part == '__pycache__' for part in path.relative_to(ROOT / slug).parts):
-                continue
-            info = zipfile.ZipInfo(path.relative_to(ROOT).as_posix(), date_time=(2026, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o100644 << 16
-            archive.writestr(info, path.read_bytes())
+    sources = {path.relative_to(ROOT).as_posix(): path for path in sorted((ROOT / slug).rglob('*'))
+               if path.is_file() and not any(part.startswith('.') or part == '__pycache__' for part in path.relative_to(ROOT / slug).parts)}
+    if dest.exists():
+        # Mantém o pacote homologado, inclusive sua compactação e seu SHA-256.
+        try:
+            with zipfile.ZipFile(dest) as archive:
+                names = archive.namelist()
+                valid = len(names) == len(set(names)) and set(names) == set(sources) and archive.testzip() is None
+                if valid:
+                    valid = all(archive.read(name) == path.read_bytes() for name, path in sources.items())
+        except (zipfile.BadZipFile, RuntimeError, OSError):
+            valid = False
+        if not valid:
+            raise SystemExit(f'O pacote {dest.name} já existe e não corresponde às fontes. Aumente a versão; não substitua um pacote publicado.')
+    else:
+        with zipfile.ZipFile(dest, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+            for name, path in sources.items():
+                info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o100644 << 16
+                archive.writestr(info, path.read_bytes())
     digest = hashlib.sha256(dest.read_bytes()).hexdigest()
     metadata = {
         'name': name, 'slug': slug, 'version': version, 'requires': '6.2', 'requires_php': '7.4',
-        'tested': '7.1.3', 'package': BASE + f'dist/{dest.name}', 'sha256': digest,
+        'tested': '7.1.4' if slug == 'k8-produtos' else '7.1.3', 'package': BASE + f'dist/{dest.name}', 'sha256': digest,
         'description': description,
         'changelog': f'<p>Versão {version}. Consulte CHANGELOG.md no repositório para as alterações.</p>',
     }
@@ -45,5 +58,6 @@ def build(slug, kind, header, name, description):
 
 if __name__ == '__main__':
     assert (ROOT / 'k8-produtos/includes/update-channel.php').read_bytes() == (ROOT / 'bmt-educacional/update-channel.php').read_bytes(), 'Sincronize o canal de atualização nos dois componentes.'
-    build('k8-produtos', 'plugin', 'k8-produtos.php', 'K8 Produtos, Alunos, Cobranças e Entregas', '<p>Catálogo, produtos por shortcode, base de alunos com CSV e API, cobrança K8, cupons, estoque, entrega com assinatura e e-mails por produto usando o SMTP do WordPress.</p>')
+    build('k8-produtos', 'plugin', 'k8-produtos.php', 'K8 Produtos, Alunos, Cobranças e Entregas', '<p>Cartão, Pix e boleto pelo K8 PAY com consulta por ID, confirmação e retorno; histórico COB preservado. Catálogo, alunos, cupons, estoque, entregas e e-mails por produto.</p>')
     build('bmt-educacional', 'theme', 'style.css', 'BMT Educacional', '<p>Site BMT Comercial com catálogo integrado de materiais didáticos, paradidáticos e eventos escolares.</p>')
+

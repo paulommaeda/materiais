@@ -78,6 +78,8 @@ final class Service
         }
         $terms = PaymentTerms::current($product);
         $quote = $terms + ['original' => $base, 'valor' => $value,
+            'gateway' => PayPayments::gateway(), 'endereco_boleto' => PayPayments::gateway() === 'pay',
+            'pagamento_ambiente' => PayClient::environment(),
             'valor_apos_data' => $promotion ? $dated['valor'] : $base,
             'promocao_id' => $promotion ? (int) $promotion->id : null,
             'promocao_titulo' => $promotion ? $promotion->titulo : null,
@@ -89,7 +91,7 @@ final class Service
             'refresh_after' => min(Discounts::refresh_after([(int) $product->id]), PaymentTerms::refresh_after([(int) $product->id]))];
         $quote['chave_preco'] = hash('sha256', wp_json_encode([$product->id, $person['turma'], $base, $value,
             $quote['valor_apos_data'], $quote['promocao_id'], $quote['promocao_fim'], $quote['cupom'], $quote['percentual'],
-            $terms['formas_pagamento'], $terms['parcelas_cartao_max'], $terms['parcelamento_regra_id'], $terms['parcelamento_fim']]));
+            $terms['formas_pagamento'], $terms['parcelas_cartao_max'], $terms['parcelamento_regra_id'], $terms['parcelamento_fim'], $quote['gateway'], $quote['pagamento_ambiente']]));
         return $quote;
     }
 
@@ -101,6 +103,17 @@ final class Service
             Support::must($wpdb->query($wpdb->prepare("UPDATE $coupons SET usado_count = GREATEST(0, usado_count - 1) WHERE produto_id = %d AND codigo = %s",
                 $order->produto_id, $order->cupom_codigo)));
         }
+    }
+
+    private static function apply_pay_update(object $order, array $update, ?string $reconciled_id = null): void
+    {
+        global $wpdb;
+        Support::transaction(static function () use ($wpdb, $order, $update, $reconciled_id) {
+            if (($update['status_pagamento'] ?? '') === 'Cancelada') self::release_coupon($order);
+            Support::must($wpdb->update(Support::table('pedidos'), $update, ['id' => $order->id]));
+            if ($order->status_pagamento === 'Paga' && $update['status_pagamento'] !== 'Paga') Support::log((int) $order->produto_id, (int) $order->id, 'pay_revisao', ['motivo' => 'Situação PAY alterada após pagamento: ' . $update['status_pagamento']]);
+            if ($reconciled_id !== null) Support::log((int) $order->produto_id, (int) $order->id, 'pay_conciliado', ['motivo' => 'Transação PAY ' . $reconciled_id . ' vinculada após consulta e conferência de pedido, comprador, valor e método.']);
+        });
     }
 
     public static function checkout(object $product, array $person, string $method, string $code, ?string $price_key = null, array $contact = []): array
@@ -126,9 +139,12 @@ final class Service
             if (($quote['valor'] <= 0) !== ($method === 'Cortesia')) {
                 throw new \InvalidArgumentException('Confira o valor e escolha a opção de pagamento correspondente.');
             }
+            $pay = $quote['valor'] > 0 && $quote['gateway'] === 'pay';
+            $environment = $quote['valor'] > 0 ? PayClient::environment() : null;
+            $buyer = $pay ? PayPayments::buyer($method, $contact) : [];
             $email_fields = Emails::contact($product, $person, $contact, $code, true);
-            $client = $quote['valor'] > 0 ? new Client() : null;
-            $id = Support::transaction(static function () use ($wpdb, $product, $person, $quote, $method, $orders, $email_fields) {
+            $client = $quote['valor'] > 0 ? ($pay ? new PayClient($environment) : new Client($environment)) : null;
+            $id = Support::transaction(static function () use ($wpdb, $product, $person, $quote, $method, $orders, $email_fields, $pay, $environment, $buyer) {
                 if ($quote['cupom']) {
                     $coupons = Support::table('cupons');
                     $affected = Support::must($wpdb->query($wpdb->prepare("UPDATE $coupons SET usado_count = usado_count + 1
@@ -146,12 +162,13 @@ final class Service
                     'promocao_id' => $quote['promocao_id'], 'promocao_titulo' => $quote['promocao_titulo'],
                     'promocao_fim' => $quote['promocao_fim'], 'valor_apos_data' => $quote['valor_apos_data'],
                     'cupom_reservado' => $quote['cupom'] ? 1 : 0,
-                    'origem' => $quote['valor'] > 0 ? ($method === 'Cartao' ? 'k8_link' : 'k8') : ($quote['cupom'] ? 'cupom_gratuito' : ($quote['promocao_id'] ? 'promocao_data' : 'gratuito')),
+                    'origem' => $quote['valor'] > 0 ? ($pay ? 'pay_checkout' : ($method === 'Cartao' ? 'k8_link' : 'k8')) : ($quote['cupom'] ? 'cupom_gratuito' : ($quote['promocao_id'] ? 'promocao_data' : 'gratuito')),
+                    'pagamento_ambiente' => $environment, 'pay_comprador' => $pay ? wp_json_encode($buyer) : null,
                     'cartao_parcelas_max' => $method === 'Cartao' ? $quote['parcelas_cartao_max'] : null,
                     'parcelamento_regra_id' => $method === 'Cartao' ? $quote['parcelamento_regra_id'] : null,
                     'parcelamento_regra_titulo' => $method === 'Cartao' ? $quote['parcelamento_titulo'] : null,
                     'parcelamento_regra_fim' => $method === 'Cartao' ? $quote['parcelamento_fim'] : null,
-                    'pagamento_referencia' => $method === 'Cartao' ? bin2hex(random_bytes(16)) : null,
+                    'pagamento_referencia' => $pay ? wp_generate_uuid4() : ($method === 'Cartao' ? bin2hex(random_bytes(16)) : null),
                     'metodo' => $method, 'status' => $quote['valor'] <= 0 ? 'gerado' : 'iniciado',
                     'status_pagamento' => $quote['valor'] <= 0 ? 'Paga' : null, 'criado_em' => current_time('mysql'),
                 ])));
@@ -164,6 +181,12 @@ final class Service
             }
             $request_started = false;
             try {
+                if ($pay) {
+                    Support::must($wpdb->update($orders, ['status' => 'verificacao'], ['id' => $id]));
+                    $request_started = true;
+                    PayPayments::create(self::order((int) $product->id, $id), $product);
+                    return self::public_order(self::order((int) $product->id, $id));
+                }
                 if ($method === 'Cartao') {
                     Support::must($wpdb->update($orders, ['status' => 'verificacao'], ['id' => $id]));
                     $request_started = true;
@@ -185,15 +208,16 @@ final class Service
                 Support::must($wpdb->update($orders, ['cobranca_id' => (string) $charge_id, 'status' => 'gerado',
                     'status_pagamento' => 'Pendente', 'resposta_raw' => wp_json_encode($result)], ['id' => $id]));
             } catch (\Throwable $e) {
+                $diagnostic = Support::diagnostic($e);
                 if (!$request_started) {
-                    Support::transaction(static function () use ($wpdb, $orders, $product, $id, $e) {
+                    Support::transaction(static function () use ($wpdb, $orders, $product, $id, $diagnostic) {
                         $order = self::order((int) $product->id, $id);
                         self::release_coupon($order);
                         Support::must($wpdb->update($orders, ['status' => 'erro', 'active_key' => null,
-                            'cupom_reservado' => 0, 'erro_mensagem' => $e->getMessage()], ['id' => $id]));
+                            'cupom_reservado' => 0, 'erro_mensagem' => $diagnostic], ['id' => $id]));
                     });
                 } else {
-                    Support::must($wpdb->update($orders, ['status' => 'verificacao', 'erro_mensagem' => $e->getMessage()], ['id' => $id]));
+                    Support::must($wpdb->update($orders, ['status' => 'verificacao', 'erro_mensagem' => $diagnostic], ['id' => $id]));
                 }
                 throw new \RuntimeException($request_started ? 'Pedido #' . $id . ' em conferência. Contate a secretaria antes de tentar novamente.' : $e->getMessage());
             }
@@ -212,7 +236,7 @@ final class Service
             'promocao_titulo' => $order->promocao_titulo ?? null,
             'status' => $order->status, 'pagamento' => $order->status_pagamento ?: 'Pendente',
             'redirect' => !in_array($order->status_pagamento, ['Paga', 'Cancelada'], true)
-                ? (CardPayments::is_link($order) ? ($order->checkout_url ?: null) : ($order->cobranca_id ? Client::checkout($order->cobranca_id) : null)) : null,
+                ? ((PayPayments::is_pay($order) || CardPayments::is_link($order)) ? ($order->checkout_url ?: null) : ($order->cobranca_id ? Client::checkout($order->cobranca_id, $order->pagamento_ambiente ?? null) : null)) : null,
             'entregas' => $wpdb->get_results($wpdb->prepare("SELECT semestre,status,entregue_em FROM $deliveries WHERE pedido_id = %d AND produto_id = %d ORDER BY semestre", $order->id, $order->produto_id))];
     }
 
@@ -221,16 +245,24 @@ final class Service
         return Support::lock('order:' . $id, static function () use ($product, $id) {
             global $wpdb;
             $order = self::order($product, $id);
-            if (in_array($order->status_pagamento, ['Paga', 'Cancelada'], true)) {
+            if ($order->status_pagamento === 'Cancelada' || ($order->status_pagamento === 'Paga' && !PayPayments::is_pay($order))) {
                 return $order;
             }
+            if (PayPayments::is_pay($order)) {
+                $update = PayPayments::synchronized($order);
+                self::apply_pay_update($order, $update);
+                return self::order($product, $id);
+            }
             if (CardPayments::is_link($order) && $order->link_pagamento_id) {
-                $update = CardPayments::synchronized(new Client(), $order);
+                $update = CardPayments::synchronized(new Client($order->pagamento_ambiente ?? null), $order);
                 Support::must($wpdb->update(Support::table('pedidos'), $update, ['id' => $id]));
                 return self::order($product, $id);
             }
             if (!$order->cobranca_id) return $order;
-            $data = (new Client())->consult($order->cobranca_id);
+            $data = (new Client($order->pagamento_ambiente ?? null))->consult($order->cobranca_id);
+            if ((string) ($data['Id'] ?? '') !== (string) $order->cobranca_id || !isset($data['Valor']) || abs((float) $data['Valor'] - (float) $order->valor) > 0.009) {
+                throw new \RuntimeException('A cobrança COB consultada não corresponde ao ID e valor deste pedido. Confira a integração.');
+            }
             $status = $data['Estado'] ?? '';
             if (!in_array($status, ['Paga', 'Pendente', 'Inadimplente', 'Cancelada'], true)) {
                 throw new \RuntimeException('Estado de cobrança não reconhecido. Confira o endpoint de consulta.');
@@ -252,9 +284,10 @@ final class Service
         global $wpdb;
         $orders = Support::table('pedidos');
         $where = $product ? $wpdb->prepare(' AND produto_id = %d', $product) : '';
-        $rows = $wpdb->get_results("SELECT id,produto_id FROM $orders WHERE (status = 'gerado' OR (status = 'verificacao' AND link_pagamento_id IS NOT NULL))
-            AND (cobranca_id IS NOT NULL OR link_pagamento_id IS NOT NULL)
-            AND (status_pagamento IS NULL OR status_pagamento NOT IN ('Paga','Cancelada')) $where
+        $pay_due = $wpdb->prepare(" OR (origem = 'pay_checkout' AND status_pagamento = 'Paga' AND (verificado_em IS NULL OR verificado_em < %s))", current_datetime()->modify('-6 hours')->format('Y-m-d H:i:s'));
+        $rows = $wpdb->get_results("SELECT id,produto_id FROM $orders WHERE (status = 'gerado' OR (status = 'verificacao' AND (link_pagamento_id IS NOT NULL OR origem = 'pay_checkout')))
+            AND (cobranca_id IS NOT NULL OR link_pagamento_id IS NOT NULL OR origem = 'pay_checkout')
+            AND (status_pagamento IS NULL OR status_pagamento NOT IN ('Paga','Cancelada') $pay_due) $where
             ORDER BY COALESCE(verificado_em,'1000-01-01') ASC,id ASC LIMIT 30");
         $result = ['atualizados' => 0, 'falhas' => 0];
         $started = microtime(true);
@@ -268,7 +301,7 @@ final class Service
                 $result['atualizados']++;
             } catch (\Throwable $e) {
                 $result['falhas']++;
-                $wpdb->update($orders, ['verificado_em' => current_time('mysql'), 'erro_mensagem' => $e->getMessage()], ['id' => $row->id]);
+                $wpdb->update($orders, ['verificado_em' => current_time('mysql'), 'erro_mensagem' => Support::diagnostic($e)], ['id' => $row->id]);
             }
         }
         return $result;
@@ -367,11 +400,12 @@ final class Service
                 global $wpdb;
                 $orders = Support::table('pedidos');
                 $order = $wpdb->get_row($wpdb->prepare("SELECT * FROM $orders WHERE id = %d AND produto_id = %d FOR UPDATE", $order_id, $product));
-                if (!$order || $order->status_pagamento !== 'Paga') {
+                if (!$order || ($action === 'entregar' && $order->status_pagamento !== 'Paga')) {
                     throw new \InvalidArgumentException('Somente pedidos pagos deste produto podem ter entrega registrada.');
                 }
                 $table = Support::table('entregas');
                 $delivery = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE pedido_id = %d AND semestre = %d FOR UPDATE", $order_id, $stage));
+                if (!$delivery && $action === 'desfazer') return;
                 if (!$delivery) {
                     Support::must($wpdb->insert($table, ['produto_id' => $product, 'pedido_id' => $order_id, 'semestre' => $stage]));
                     $delivery = (object) ['id' => $wpdb->insert_id, 'status' => 'pendente', 'materiais_entregues' => '[]'];
@@ -413,19 +447,36 @@ final class Service
         Support::lock('order:' . $id, static function () use ($product, $id, $reason, $release_uncertain) {
             global $wpdb;
             $order = self::order($product, $id);
+            $manual_pay_note = null;
             if ($order->status_pagamento === 'Paga') {
                 throw new \InvalidArgumentException('Pedido pago: trate o reembolso diretamente na K8. O histórico é preservado.');
             }
             if ($order->status_pagamento === 'Cancelada') {
                 return;
             }
-            if ($order->status === 'verificacao' && !$order->cobranca_id && !$order->link_pagamento_id && !$release_uncertain) {
+            if ($order->status === 'verificacao' && !$order->cobranca_id && !$order->link_pagamento_id && !$order->pay_checkout_id && !$release_uncertain) {
                 throw new \InvalidArgumentException('Confira na K8 se existe cobrança e confirme a liberação manual da tentativa.');
             }
-            if (CardPayments::is_link($order) && $order->link_pagamento_id) {
-                CardPayments::cancel(new Client(), $order);
+            if (PayPayments::is_pay($order)) {
+                if (!$release_uncertain) throw new \InvalidArgumentException('Encerre o checkout no painel PAY e confirme que não existe pagamento ou checkout ativo antes de liberar outra compra.');
+                try {
+                    $update = PayPayments::synchronized($order);
+                } catch (\Throwable $e) {
+                    // Checkout não utilizado pode ainda não ter transação consultável.
+                    // A liberação depende da declaração explícita de baixa no painel PAY.
+                    $update = null;
+                    $manual_pay_note = Support::diagnostic($e);
+                }
+                if (($update['status_pagamento'] ?? '') === 'Paga') {
+                    Support::must($wpdb->update(Support::table('pedidos'), $update, ['id' => $id]));
+                    throw new \InvalidArgumentException('Pagamento confirmado no PAY. O pedido foi atualizado; reembolsos são tratados no PAY.');
+                }
+                // A API de estorno PAY não é usada para encerrar checkouts não pagos.
+                // A confirmação acima é a conferência administrativa da baixa remota.
+            } elseif (CardPayments::is_link($order) && $order->link_pagamento_id) {
+                CardPayments::cancel(new Client($order->pagamento_ambiente ?? null), $order);
             } elseif ($order->cobranca_id) {
-                $client = new Client();
+                $client = new Client($order->pagamento_ambiente ?? null);
                 $data = $client->consult($order->cobranca_id);
                 if (($data['Estado'] ?? '') === 'Paga') {
                     Support::must($wpdb->update(Support::table('pedidos'), ['status_pagamento' => 'Paga'], ['id' => $id]));
@@ -438,11 +489,13 @@ final class Service
                     $client->cancel($order->cobranca_id);
                 }
             }
-            Support::transaction(static function () use ($wpdb, $order, $reason) {
+            Support::transaction(static function () use ($wpdb, $order, $reason, $manual_pay_note) {
                 self::release_coupon($order);
                 Support::must($wpdb->update(Support::table('pedidos'), ['status' => 'cancelado', 'status_pagamento' => 'Cancelada',
                     'active_key' => null, 'cupom_reservado' => 0, 'verificado_em' => current_time('mysql')], ['id' => $order->id]));
                 Support::log((int) $order->produto_id, (int) $order->id, 'cancelado', ['motivo' => $reason]);
+                if (PayPayments::is_pay($order)) Support::log((int) $order->produto_id, (int) $order->id, 'pay_baixa_manual',
+                    ['motivo' => 'Operador declarou ausência de pagamento e encerramento do checkout PAY.', 'consulta' => $manual_pay_note ?: 'Consulta PAY efetuada antes da liberação.']);
             });
         });
     }
@@ -455,6 +508,11 @@ final class Service
         Support::lock('order:' . $id, static function () use ($product, $id, $charge) {
             global $wpdb;
             $order = self::order($product, $id);
+            if (PayPayments::is_pay($order)) {
+                if ($order->status_pagamento === 'Cancelada') throw new \InvalidArgumentException('Pedido cancelado: confira o histórico e a transação no PAY antes de conciliar.');
+                self::apply_pay_update($order, PayPayments::synchronized($order, $charge), $charge);
+                return;
+            }
             if ($order->status !== 'verificacao' || $order->cobranca_id) {
                 throw new \InvalidArgumentException('Este pedido não está aguardando conciliação.');
             }
@@ -462,7 +520,7 @@ final class Service
                 CardPayments::reconcile($order, $charge);
                 return;
             }
-            $data = (new Client())->consult($charge);
+            $data = (new Client($order->pagamento_ambiente ?? null))->consult($charge);
             if ((string) ($data['Id'] ?? '') !== $charge || (string) ($data['ClienteId'] ?? '') !== (string) $order->cliente_id ||
                 !isset($data['Valor']) || abs((float) $data['Valor'] - (float) $order->valor) > 0.009 ||
                 !in_array($data['Estado'] ?? '', ['Paga', 'Pendente', 'Inadimplente'], true)) {

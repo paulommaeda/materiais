@@ -96,7 +96,7 @@ final class Http
             }
             if ($op === 'status') {
                 $order = Service::active($id, $person['ra']);
-                if ($order && ($order->cobranca_id || $order->link_pagamento_id) && (!$order->verificado_em || strtotime($order->verificado_em) < current_time('timestamp') - 60)) {
+                if ($order && ($order->cobranca_id || $order->link_pagamento_id || PayPayments::is_pay($order)) && (!$order->verificado_em || strtotime($order->verificado_em) < current_time('timestamp') - 60)) {
                     try {
                         $order = Service::sync_order($id, (int) $order->id);
                     } catch (\Throwable $e) {
@@ -121,7 +121,7 @@ final class Http
             $data = wp_unslash($_POST);
             $op = Support::text($data, 'op');
             $id = absint($data['produto_id'] ?? 0);
-            if (in_array($op, ['save_product', 'set_product_status', 'save_email_settings', 'settings'], true)) {
+            if (in_array($op, ['save_product', 'set_product_status', 'save_email_settings', 'settings', 'pay_check'], true)) {
                 if (!current_user_can('manage_options')) {
                     throw new \RuntimeException('Somente administradores podem alterar esta configuração.');
                 }
@@ -141,6 +141,13 @@ final class Http
     private static function mutate(string $op, int $id, array $data): array
     {
         global $wpdb;
+        if ($op === 'pay_check') {
+            $configuration = (new PayClient())->configuration();
+            $enabled = $configuration['HabilitarParcelamento'] ?? $configuration['habilitarParcelamento'] ?? null;
+            $maximum = $configuration['QuantidadeMaximaParcelas'] ?? $configuration['quantidadeMaximaParcelas'] ?? null;
+            return ['message' => 'Conexão com o PAY confirmada.' . (is_bool($enabled) ? ($enabled ? ' Parcelamento habilitado.' : ' Parcelamento desabilitado.') : '') .
+                (is_numeric($maximum) && (int) $maximum >= 0 && (int) $maximum <= 12 ? ' Máximo informado pela conta: ' . (int) $maximum . ' parcela(s).' : '')];
+        }
         if ($op === 'set_product_status') {
             $product = Support::product($id);
             $active = $data['ativo'] ?? null;
@@ -273,6 +280,27 @@ final class Http
 
     private static function settings(array $data): void
     {
+        $gateway = Support::text($data, 'gateway') ?: PayPayments::gateway();
+        if (!in_array($gateway, ['cob', 'pay'], true)) throw new \InvalidArgumentException('Escolha COB ou PAY para as novas compras.');
+        $pay_credentials = [];
+        foreach (['production', 'sandbox'] as $environment) {
+            foreach (['client_id', 'client_secret', 'aes_key'] as $name) {
+                $field = 'pay_' . ($environment === 'sandbox' ? 'sandbox_' : '') . $name;
+                $value = $data[$field] ?? '';
+                if (!is_string($value) || strlen($value) > 4096 || preg_match('/[\x00\r\n]/', $value)) throw new \InvalidArgumentException('Confira os campos de credenciais PAY.');
+                $value = trim($value);
+                if ($value !== '') $pay_credentials['k8prod_' . $field] = $value;
+            }
+        }
+        if ($gateway === 'pay') {
+            $environment = empty($data['producao']) ? 'sandbox' : 'production';
+            foreach (['client_id', 'client_secret', 'aes_key'] as $name) {
+                $option = 'k8prod_pay_' . ($environment === 'sandbox' ? 'sandbox_' : '') . $name;
+                $constant = 'K8PROD_PAY_' . ($environment === 'sandbox' ? 'SANDBOX_' : '') . strtoupper($name);
+                $value = defined($constant) ? (string) constant($constant) : ($pay_credentials[$option] ?? PayClient::credential($environment, $name));
+                if ($value === '') throw new \InvalidArgumentException('Cadastre as três credenciais próprias do PAY para o ambiente selecionado antes de habilitá-lo.');
+            }
+        }
         $map = [];
         foreach (Students::defaults() as $key => $default) {
             $value = Support::text($data, 'student_' . $key);
@@ -283,8 +311,9 @@ final class Http
             }
         }
         $urls = [];
-        foreach (['api_production', 'api_sandbox', 'checkout_production', 'checkout_sandbox'] as $key) {
-            $url = Support::text($data, $key);
+        $pay_urls = ['pay_api_production' => 'https://pagamentos.meuk8.com.br/PagamentosAPI', 'pay_api_sandbox' => 'https://sandbox.meuk8.com.br/PagamentosAPI'];
+        foreach (['api_production', 'api_sandbox', 'checkout_production', 'checkout_sandbox', 'pay_api_production', 'pay_api_sandbox'] as $key) {
+            $url = isset($data[$key]) ? Support::text($data, $key) : (isset($pay_urls[$key]) ? (string) get_option('k8prod_' . $key, $pay_urls[$key]) : '');
             $parts = wp_parse_url($url);
             if (!$parts || ($parts['scheme'] ?? '') !== 'https' || empty($parts['host']) || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])) {
                 throw new \InvalidArgumentException('Informe URLs HTTPS válidas para API e checkout.');
@@ -301,6 +330,8 @@ final class Http
         }
         // Valida tudo antes de alterar as opções.
         update_option('k8prod_students', $map, false);
+        foreach ($pay_credentials as $key => $value) update_option($key, $value, false);
+        update_option('k8prod_gateway', $gateway, false);
         foreach (array_merge($urls, $paths) as $key => $value) {
             update_option('k8prod_' . $key, $value, false);
         }

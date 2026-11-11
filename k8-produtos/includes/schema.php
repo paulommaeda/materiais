@@ -136,6 +136,10 @@ final class Schema
                     parcelamento_regra_fim date DEFAULT NULL,
                     pagamento_referencia varchar(64) DEFAULT NULL,
                     link_pagamento_id varchar(50) DEFAULT NULL,
+                    pay_checkout_id varchar(50) DEFAULT NULL,
+                    pay_transacao_id varchar(50) DEFAULT NULL,
+                    pagamento_ambiente varchar(12) DEFAULT NULL,
+                    pay_comprador longtext DEFAULT NULL,
                     checkout_url text DEFAULT NULL,
                     cliente_id varchar(50) DEFAULT NULL,
                     cobranca_id varchar(50) DEFAULT NULL,
@@ -155,6 +159,8 @@ final class Schema
                     PRIMARY KEY  (id),
                     UNIQUE KEY active_key (active_key),
                     UNIQUE KEY link_pagamento_id (link_pagamento_id),
+                    UNIQUE KEY pay_checkout_id (pay_checkout_id),
+                    UNIQUE KEY pay_transacao_id (pay_transacao_id),
                     KEY produto_ra (produto_id,ra),
                     KEY produto_status (produto_id,status_pagamento),
                     KEY email_confirmacao (email_notificar,status_pagamento),
@@ -287,6 +293,8 @@ final class Schema
             StudentImport::install();
             ProductClasses::migrate();
             PaymentTerms::migrate();
+            $environment = get_option('k8p_producao', '0') === '1' ? 'production' : 'sandbox';
+            Support::must($wpdb->query($wpdb->prepare('UPDATE ' . Support::table('pedidos') . " SET pagamento_ambiente = %s WHERE pagamento_ambiente IS NULL AND origem IN ('k8','k8_link')", $environment)));
             update_option('k8prod_schema', K8PROD_VERSION, false);
         });
     }
