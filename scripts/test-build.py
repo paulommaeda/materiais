@@ -46,6 +46,7 @@ class Packages(unittest.TestCase):
     def test_new_package_and_manifest_agree(self):
         self.build()
         metadata = self.metadata()
+        self.assertEqual(metadata['name'], 'Plugin teste')
         self.assertEqual(metadata['version'], '1.2.3')
         self.assertEqual(metadata['sha256'], self.digest())
         self.assertTrue(metadata['package'].endswith('/dist/k8-produtos-1.2.3.zip'))
@@ -63,6 +64,7 @@ class Packages(unittest.TestCase):
         validated_digest = self.digest()
         self.build()
         self.assertEqual(self.digest(), validated_digest)
+        self.assertEqual(self.metadata()['name'], 'Plugin teste')
         self.assertEqual(self.metadata()['sha256'], validated_digest)
 
     def test_same_version_cannot_replace_published_content(self):
@@ -82,6 +84,7 @@ class Packages(unittest.TestCase):
         (self.plugin / 'app.js').write_text('const value = 2;\n', 'utf-8')
         self.build()
         self.assertEqual(self.digest(), previous_digest)
+        self.assertEqual(self.metadata()['name'], 'Plugin teste')
         self.assertEqual(self.metadata()['version'], '1.2.4')
         self.assertEqual(self.metadata()['sha256'], self.digest('1.2.4'))
 

@@ -36,8 +36,8 @@ def build(slug, kind, header, name, description):
             raise SystemExit(f'O pacote {dest.name} já existe e não corresponde às fontes. Aumente a versão; não substitua um pacote publicado.')
     else:
         with zipfile.ZipFile(dest, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-            for name, path in sources.items():
-                info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+            for entry_name, path in sources.items():
+                info = zipfile.ZipInfo(entry_name, date_time=(2026, 1, 1, 0, 0, 0))
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = 0o100644 << 16
                 archive.writestr(info, path.read_bytes())
